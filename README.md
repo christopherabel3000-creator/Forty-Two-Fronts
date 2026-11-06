@@ -17,6 +17,15 @@ Choose “Online with a friend”, pick how many friends (1 to 5) and computer p
 
 Games are saved in the shared Firebase Realtime Database under `fortyTwoFronts/<CODE>`, separate from the other games' sections. The database only accepts a save whose version number is exactly one higher than the stored one, so two devices can never overwrite each other. `firebase-rules-section.json` holds this game's section, to be added alongside the other games' sections in the database rules.
 
+## Setting up the board
+
+Choose how the board is set up when you start a game:
+
+- **Classic (3 to 6 players):** take turns claiming one empty territory at a time until all 42 are taken, then take turns placing the rest of your armies one at a time. Starting armies: 35 each for 3 players, 30 for 4, 25 for 5, 20 for 6.
+- **Official two-player rules:** territories are dealt three ways, 14 to each player and 14 to a neutral army. Each side has 40 armies. On each setup turn you place 2 of your own armies and 1 neutral army. The neutral army never attacks, only defends, and you win by beating your opponent even if neutral territories remain.
+- **Deal territories (3 to 6 players):** territories are dealt at random, then you take turns placing armies.
+- **Quick start:** territories and armies are all dealt at random (two-player games still include the neutral army).
+
 ## How a turn works
 
 1. **Place armies:** one for every three territories you hold (at least three), plus continent bonuses: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.

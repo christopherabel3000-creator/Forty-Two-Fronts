@@ -74,6 +74,7 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line
 .m-node { stroke: var(--surface); stroke-width: 2.5; }
 .m-red { fill: var(--p-red); } .m-blue { fill: var(--p-blue); } .m-green { fill: var(--p-green); }
 .m-gold { fill: var(--p-gold); } .m-purple { fill: var(--p-purple); } .m-slate { fill: var(--p-slate); }
+.m-open { fill: var(--bg); stroke: var(--muted); stroke-dasharray: 3 3; }
 .m-n { fill: #fff; font: 700 13px var(--f-body); text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 2px; }
 .m-lbl { fill: var(--ink); font: 11px var(--f-body); text-anchor: middle; }
 .m-ring { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: 4 3; }
@@ -161,28 +162,139 @@ function rnd(n) { return Math.floor(Math.random() * n); }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function rollDie() { return 1 + rnd(6); }
 
-function newGame(players) {
+// setup: 'standard' = the rulebook setup (3-6 players claim territories one at a time; 2 players use the
+// official neutral-army rules), 'deal' = territories dealt at random then armies placed in turns,
+// 'random' = territories and armies all dealt at random.
+function newGame(players, setup = 'standard') {
   // players: [{name, kind:'human'|'ai', uid?}]
+  const n = players.length, two = n === 2;
+  if (two && setup === 'deal') setup = 'standard';
   const G = {
-    v: 1, seq: 0, turn: 0, cur: 0, phase: 'reinforce', reserve: 0, conquered: false,
-    trades: 0, occupy: null, winner: null, afterCapture: false, placed: [],
+    v: 2, seq: 0, turn: 0, cur: 0, phase: 'reinforce', reserve: 0, conquered: false,
+    trades: 0, occupy: null, winner: null, afterCapture: false, placed: [], setup,
     players: players.map((p, i) => ({ name: p.name, kind: p.kind, uid: p.uid || null, color: COLORS[i].key, colorName: COLORS[i].name, cards: [], alive: true })),
     owner: {}, armies: {}, deck: [], discard: [], log: [], logId: 0,
   };
-  const n = players.length;
-  const order = shuffle(TIDS.slice());
-  order.forEach((t, i) => { G.owner[t] = i % n; G.armies[t] = 1; });
-  // spread remaining starting armies at random over each player's territories
-  for (let p = 0; p < n; p++) {
-    const mine = TIDS.filter(t => G.owner[t] === p);
-    let left = START_ARMIES[n] - mine.length;
-    while (left-- > 0) G.armies[mine[rnd(mine.length)]]++;
-  }
+  // two players: a third, neutral army holds territories and only ever defends
+  if (two) G.players.push({ name: 'Neutral', kind: 'neutral', uid: null, color: 'slate', colorName: 'Gray', cards: [], alive: true });
+  TIDS.forEach(t => { G.owner[t] = null; G.armies[t] = 0; });
+  G.pool = G.players.map(() => START_ARMIES[n]);
   G.deck = shuffle(TIDS.map((t, i) => ({ t, k: KINDS[i % 3] })).concat([{ t: null, k: 'Wild' }, { t: null, k: 'Wild' }]));
-  G.cur = rnd(n);
-  addLog(G, -1, `New game with ${n} players. Territories and armies were dealt at random. First turn: {p${G.cur}}.`);
-  startTurn(G);
+  G.first = G.cur = rnd(n);
+  const first = `{p${G.first}}`;
+  if (setup === 'standard' && !two) {
+    G.phase = 'claim'; setupBeginTurn(G);
+    addLog(G, -1, `New game with ${n} players, ${START_ARMIES[n]} armies each. Take turns claiming one empty territory at a time, starting with ${first}. When all 42 are claimed, take turns placing the rest of your armies.`);
+    return G;
+  }
+  const seats = G.players.map((_, i) => i);
+  shuffle(TIDS.slice()).forEach((t, i) => { const p = seats[i % seats.length]; G.owner[t] = p; G.armies[t] = 1; G.pool[p]--; });
+  const dealt = two ? 'Territories were dealt three ways: 14 to each of you and 14 to a neutral army' : 'Territories were dealt at random';
+  if (setup === 'random') {
+    seats.forEach(p => scatter(G, p));
+    addLog(G, -1, `New game with ${n} players. ${dealt}, and starting armies were spread at random. First turn: ${first}.`);
+    G.pool = null; startTurn(G); return G;
+  }
+  G.phase = 'deploy'; setupBeginTurn(G);
+  addLog(G, -1, two
+    ? `New two-player game. ${dealt}. Each side has 40 armies. Take turns placing 2 of your own armies and 1 neutral army, starting with ${first}.`
+    : `New game with ${n} players, ${START_ARMIES[n]} armies each. ${dealt}. Take turns placing the rest of your armies one at a time, starting with ${first}.`);
   return G;
+}
+
+// ---- Setup phases: 'claim' (pick empty territories) and 'deploy' (place remaining starting armies) ----
+const neutralIdx = G => G.players.findIndex(p => p.kind === 'neutral');
+const inSetup = G => G.phase === 'claim' || G.phase === 'deploy';
+function scatter(G, p) {
+  const mine = TIDS.filter(t => G.owner[t] === p);
+  while (G.pool[p] > 0 && mine.length) { G.armies[mine[rnd(mine.length)]]++; G.pool[p]--; }
+}
+function setupBeginTurn(G) {
+  G.placed = [];
+  if (G.phase === 'claim') { G.su = { own: 1, neu: 0 }; return; }
+  const N = neutralIdx(G);
+  G.su = { own: Math.min(N >= 0 ? 2 : 1, G.pool[G.cur]), neu: N >= 0 ? Math.min(1, G.pool[N]) : 0 };
+}
+function setupClaim(G, t) {
+  if (G.phase !== 'claim' || G.owner[t] !== null) return false;
+  const p = G.cur;
+  G.owner[t] = p; G.armies[t] = 1; G.pool[p]--;
+  addLog(G, p, `{p${p}} claimed ${T[t].name}.`);
+  setupNext(G); return true;
+}
+// returns 'more' if the same player still has armies to place this turn, 'done' when the turn passed on
+function setupPlace(G, t, neutral) {
+  if (G.phase !== 'deploy') return false;
+  const p = G.cur, N = neutralIdx(G), who = neutral ? N : p;
+  if (G.owner[t] !== who || (neutral ? G.su.neu : G.su.own) < 1) return false;
+  G.armies[t]++; G.pool[who]--;
+  if (neutral) G.su.neu--; else G.su.own--;
+  G.placed.push([t, neutral ? 1 : 0]);
+  if (G.su.own > 0 || G.su.neu > 0) return 'more';
+  const parts = [];
+  const sum = {}; G.placed.filter(x => !x[1]).forEach(([x]) => sum[x] = (sum[x] || 0) + 1);
+  if (Object.keys(sum).length) parts.push(Object.entries(sum).map(([x, k]) => `${k} on ${T[x].name}`).join(' and '));
+  G.placed.filter(x => x[1]).forEach(([x]) => parts.push(`1 neutral army on ${T[x].name}`));
+  addLog(G, p, `{p${p}} placed ${parts.join(', plus ')}.`);
+  setupNext(G); return 'done';
+}
+function setupNext(G) {
+  const n = G.players.length, real = i => G.players[i].kind !== 'neutral';
+  if (G.phase === 'claim') {
+    if (TIDS.some(t => G.owner[t] === null)) {
+      do { G.cur = (G.cur + 1) % n; } while (!real(G.cur));
+      setupBeginTurn(G); return;
+    }
+    G.phase = 'deploy';
+    addLog(G, -1, 'Every territory is claimed. Now take turns placing the rest of your armies, one at a time.');
+  }
+  for (let k = 1; k <= n; k++) {
+    const i = (G.cur + k) % n;
+    if (real(i) && G.pool[i] > 0) { G.cur = i; setupBeginTurn(G); return; }
+  }
+  // everyone is placed; any neutral armies left over are spread at random
+  const N = neutralIdx(G); if (N >= 0) scatter(G, N);
+  G.su = null; G.pool = null; G.placed = []; G.cur = G.first; G.turn = 0;
+  addLog(G, -1, `All starting armies are placed. {p${G.first}} takes the first turn.`);
+  startTurn(G);
+}
+// computer player's setup turn
+function aiSetup(G) {
+  const p = G.cur, N = neutralIdx(G);
+  if (G.phase === 'claim') {
+    let best = null, bs = -1e9;
+    for (const t of TIDS) {
+      if (G.owner[t] !== null) continue;
+      const ts = TIDS.filter(x => T[x].c === T[t].c);
+      const mine = ts.filter(x => G.owner[x] === p).length, theirs = ts.filter(x => G.owner[x] !== null && G.owner[x] !== p).length;
+      const sc = mine * 3 - theirs * 2.5 + 12 / ts.length + ADJ[t].filter(x => G.owner[x] === p).length + Math.random();
+      if (sc > bs) { bs = sc; best = t; }
+    }
+    setupClaim(G, best); return;
+  }
+  const foes = x => G.owner[x] !== p && G.owner[x] !== N;
+  const steps = G.su.own + G.su.neu;
+  for (let s = 0; s < steps && G.phase === 'deploy' && G.cur === p; s++) {
+    if (G.su.neu > 0) {
+      // neutral armies go where they block an opponent rather than us
+      let best = null, bs = -1e9;
+      for (const t of TIDS) {
+        if (G.owner[t] !== N) continue;
+        const sc = ADJ[t].filter(foes).length * 2 - ADJ[t].filter(x => G.owner[x] === p).length + Math.random();
+        if (sc > bs) { bs = sc; best = t; }
+      }
+      setupPlace(G, best, true); continue;
+    }
+    let best = null, bs = -1e9;
+    for (const t of owned(G, p)) {
+      const en = ADJ[t].filter(x => G.owner[x] !== p);
+      if (!en.length) continue;
+      const ts = TIDS.filter(x => T[x].c === T[t].c), share = ts.filter(x => G.owner[x] === p).length / ts.length;
+      const sc = ADJ[t].filter(foes).reduce((a, x) => a + G.armies[x], 0) - G.armies[t] + share * 6 + Math.random();
+      if (sc > bs) { bs = sc; best = t; }
+    }
+    setupPlace(G, best || owned(G, p)[0], false);
+  }
 }
 
 function addLog(G, p, s) {
@@ -289,10 +401,15 @@ function capture(G, from, to, ad, res) {
   G.owner[to] = p; G.conquered = true; res.captured = true;
   addLog(G, p, `{p${p}} captured ${T[to].name} from {p${def}}, attacking from ${T[from].name}.`);
   if (owned(G, def).length === 0) {
-    const dp = G.players[def]; dp.alive = false; res.eliminated = def;
-    const n = dp.cards.length; G.players[p].cards.push(...dp.cards); dp.cards = [];
-    addLog(G, p, `{p${p}} eliminated {p${def}}${n ? ` and took ${n} card${n > 1 ? 's' : ''}` : ''}.`);
-    const alive = G.players.filter(x => x.alive).length;
+    const dp = G.players[def]; dp.alive = false;
+    if (dp.kind === 'neutral') addLog(G, p, `{p${p}} took the last neutral territory.`);
+    else {
+      res.eliminated = def;
+      const n = dp.cards.length; G.players[p].cards.push(...dp.cards); dp.cards = [];
+      addLog(G, p, `{p${p}} eliminated {p${def}}${n ? ` and took ${n} card${n > 1 ? 's' : ''}` : ''}.`);
+    }
+    // the neutral army never has to be beaten
+    const alive = G.players.filter(x => x.alive && x.kind !== 'neutral').length;
     if (alive === 1) { G.winner = p; G.phase = 'over'; addLog(G, p, `{p${p}} conquered the whole world. Game over.`); }
   }
   const max = G.armies[from] - 1, min = Math.min(ad, max);
@@ -342,7 +459,7 @@ function endTurn(G) {
     if (c) { G.players[p].cards.push(c); addLog(G, p, `{p${p}} earned a card for capturing a territory this turn.`); }
   }
   let n = G.cur;
-  do { n = (n + 1) % G.players.length; } while (!G.players[n].alive);
+  do { n = (n + 1) % G.players.length; } while (!G.players[n].alive || G.players[n].kind === 'neutral');
   G.cur = n;
   startTurn(G);
 }
@@ -351,6 +468,8 @@ function endTurn(G) {
 function aiTurn(G) {
   const p = G.cur, me = G.players[p];
   if (me.kind !== 'ai' || G.phase === 'over') return;
+  if (inSetup(G)) { aiSetup(G); return; }
+  const isNeutral = t => G.players[G.owner[t]].kind === 'neutral';
   let s; while ((s = bestSet(G, p))) trade(G, s);
 
   const focusCont = () => {
@@ -385,7 +504,7 @@ function aiTurn(G) {
         const diff = G.armies[f] - G.armies[e];
         if (diff < 2) continue;
         const defCount = owned(G, G.owner[e]).length;
-        const sc = diff + (T[e].c === fc ? 4 : 0) + (defCount <= 2 ? 6 : 0) + (G.conquered ? 0 : 3);
+        const sc = diff + (T[e].c === fc ? 4 : 0) + (defCount <= 2 && !isNeutral(e) ? 6 : 0) + (G.conquered ? 0 : 3) - (isNeutral(e) ? 2 : 0);
         if (sc > bs) { bs = sc; best = [f, e]; }
       }
     }
@@ -415,7 +534,7 @@ function aiTurn(G) {
     let dst = null, threat = -1e9;
     for (const t of reachable(G, src)) {
       const en = enemiesOf(G, t); if (!en.length) continue;
-      const th = en.reduce((s2, e) => s2 + G.armies[e], 0) - G.armies[t];
+      const th = en.reduce((s2, e) => s2 + (isNeutral(e) ? 0 : G.armies[e]), 0) - G.armies[t];
       if (th > threat) { threat = th; dst = t; }
     }
     if (dst) { fortify(G, src, dst, G.armies[src] - 1); return; }
@@ -460,9 +579,9 @@ function fmt(s) {
   return s.replace(/\{p(\d+)\}/g, (m, i) => pname(+i)).replace(/(^|[.:!]\s+)you\b/g, (m, a) => a + 'You');
 }
 const who = i => `${esc(G.players[i].name)} (${G.players[i].colorName})`;
-const chip = i => `<span class="chip p-${G.players[i].color}" aria-hidden="true"></span>`;
+const chip = i => `<span class="chip${i == null ? '' : ' p-' + G.players[i].color}" aria-hidden="true"></span>`;
 const tname = t => T[t].name;
-const ownerLabel = t => G.owner[t] === viewer() ? 'yours' : G.players[G.owner[t]].name;
+const ownerLabel = t => G.owner[t] === null ? 'open' : G.owner[t] === viewer() ? 'yours' : G.players[G.owner[t]].name;
 
 // ---------- persistence / sync ----------
 function commit(focusId) {
@@ -513,7 +632,7 @@ function maybeRunAI() {
     if (G.online) pushOnline(); else store(SAVE_KEY, G);
     if (G.players[G.cur].kind === 'ai' && G.phase !== 'over') { render(); maybeRunAI(); return; }
     beginTurnView();
-  }, 700);
+  }, inSetup(G) ? 250 : 700);
 }
 function resetSel() { ui.from = ui.to = ui.ffrom = ui.fto = null; }
 
@@ -525,7 +644,8 @@ function beginTurnView() {
     ui.handoff = true; ui.handoffFor = G.turn;
     render('phase-h'); say(`Pass the device to ${G.players[G.cur].name}.`, true); return;
   }
-  render('phase-h');
+  if (G.phase === 'deploy' && ui.sFocus) { render(); ($(ui.sFocus) || $('phase-h')).focus(); }
+  else render('phase-h');
   announceNew();
 }
 
@@ -542,6 +662,19 @@ function defaultPlayers(mode) {
   if (mode === 'ai') return [{ name: 'You', kind: 'human' }, { name: 'Computer 1', kind: 'ai' }, { name: 'Computer 2', kind: 'ai' }];
   return [{ name: 'Player 1', kind: 'human' }, { name: 'Player 2', kind: 'human' }];
 }
+function setupModeField(n) {
+  const opts = n === 2
+    ? [['standard', 'Official two-player rules', 'Territories are dealt three ways, with a neutral army taking the third share. You then take turns placing 2 of your armies and 1 neutral army.'],
+       ['random', 'Quick start', 'Territories and armies are dealt at random, still with a neutral army.']]
+    : [['standard', 'Classic', 'Take turns claiming territories one at a time, then take turns placing armies.'],
+       ['deal', 'Deal territories', 'Territories are dealt at random, then you take turns placing armies.'],
+       ['random', 'Quick start', 'Territories and armies are all dealt at random.']];
+  let cur = ui.setupMode || 'standard'; if (!opts.some(o => o[0] === cur)) cur = 'standard';
+  return `<fieldset><legend>How to set up the board</legend><div class="stack">` + opts.map(([v, l, d]) =>
+    `<label style="font-weight:400"><input type="radio" name="smode" id="smode-${v}" value="${v}" data-act="smode" ${cur === v ? 'checked' : ''}> <strong>${l}.</strong> ${d}</label>`).join('') +
+    `</div></fieldset>`;
+}
+function chosenSetup(n) { const m = ui.setupMode || 'standard'; return n === 2 && m === 'deal' ? 'standard' : m; }
 function setupView() {
   const saved = load(SAVE_KEY); const lastOnline = load(ONLINE_KEY);
   if (!ui.setupPlayers) ui.setupPlayers = defaultPlayers('ai');
@@ -573,8 +706,7 @@ function setupView() {
     h += `</ol><div class="row">
       ${sp.length < 6 ? `<button id="add-p" data-act="addp">Add a player</button>` : ''}
       ${sp.length > 2 ? `<button id="rm-p" data-act="rmp">Remove the last player</button>` : ''}
-      <button class="primary" id="start" data-act="start">Start game</button></div>
-      <p class="note">Territories and starting armies are dealt at random so you can start playing right away.</p>`;
+      </div>${setupModeField(sp.length)}<p><button class="primary" id="start" data-act="start">Start game</button></p>`;
   }
   h += `</section>` + rulesBlock();
   return h;
@@ -590,6 +722,7 @@ function onlineSetup(lastOnline) {
     <div class="field"><label for="ai-count">Computer players</label><select id="ai-count" data-act="aicount">
       ${Array.from({ length: maxCpu + 1 }, (_, n) => `<option value="${n}" ${cpus === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
     <p class="note">${1 + friends + cpus} players in all, up to 6.</p>
+    ${setupModeField(1 + friends + cpus)}
     <p><button class="primary" id="create" data-act="create">Create game and get a code</button></p>
     <h3>Join a friend's game</h3>
     <div class="field"><label for="join-code">Game code</label><input id="join-code" value="${esc(ui.joinCode || '')}" data-act="joincode" maxlength="4" autocomplete="off" autocapitalize="characters"></div>
@@ -602,11 +735,12 @@ function lobbyView() {
   const spelled = net.code.split('').join(' ');
   const open = G.players.filter(p => p.kind === 'human' && !p.uid).length;
   const host = G.host === net.token;
-  const seats = G.players.map((p, i) => `<li>${chip(i)}${p.colorName}: ${p.kind === 'ai' ? esc(p.name) + ', computer' : p.uid ? esc(p.name) + (i === net.seat ? ' (you)' : '') + (p.uid === G.host ? ', host' : '') : 'open seat'}</li>`).join('');
+  const seats = G.players.map((p, i) => p.kind === 'neutral' ? '' : `<li>${chip(i)}${p.colorName}: ${p.kind === 'ai' ? esc(p.name) + ', computer' : p.uid ? esc(p.name) + (i === net.seat ? ' (you)' : '') + (p.uid === G.host ? ', host' : '') : 'open seat'}</li>`).join('');
   return `<section class="lead"><h2 id="phase-h" tabindex="-1">Waiting for ${open} more player${open === 1 ? '' : 's'}</h2>
     <p>Game code:</p><p class="code" aria-label="${spelled}">${net.code}</p>
     <p>Send your friends the game's link and this code. They choose “Online with a friend”, type their name, enter the code, and choose Join game. The game starts when every seat is filled, and this page will tell you as each person joins.</p>
     <h3>Seats</h3><ul class="stack">${seats}</ul>
+    <p class="note">Board setup: ${{ standard: neutralIdx(G) >= 0 ? 'official two-player rules, with a neutral army' : 'classic, claiming territories in turns', deal: 'territories dealt, then armies placed in turns', random: 'quick start, all dealt at random' }[G.setup || 'random']}.</p>
     <div class="row" style="margin-top:12px"><button id="copy" data-act="copy">Copy the code</button>
       ${host ? `<button id="start-now" data-act="startnow">Start now, with computers in the open seats</button>` : ''}
       <button id="leave" data-act="leave">Leave and go back</button></div></section>`;
@@ -617,7 +751,7 @@ function gameView() {
   const me = viewer();
   const cp = G.players[G.cur];
   let h = `<section aria-labelledby="status-h"><h2 id="status-h" class="sr">Status</h2>
-    <p class="status">${G.phase === 'over' ? 'Game over.' : `Turn ${G.turn}. ${chip(G.cur)}${G.cur === me ? '<strong>Your turn</strong>' : `${who(G.cur)}'s turn`}, ${phaseName()}.`}
+    <p class="status">${G.phase === 'over' ? 'Game over.' : `${inSetup(G) ? 'Setup' : `Turn ${G.turn}`}. ${chip(G.cur)}${G.cur === me ? '<strong>Your turn</strong>' : `${who(G.cur)}'s turn`}, ${phaseName()}.`}
     ${me >= 0 ? ` You hold ${owned(G, me).length} territor${owned(G, me).length === 1 ? 'y' : 'ies'} and ${G.players[me].cards.length} card${G.players[me].cards.length === 1 ? '' : 's'}.` : ''}</p></section>`;
   h += `<p><button id="map-toggle" aria-pressed="${ui.showMap}" data-act="maptoggle">${ui.showMap ? 'Hide' : 'Show'} the board diagram (for sighted players)</button></p>`;
   if (ui.showMap) h += mapView();
@@ -633,7 +767,7 @@ function gameView() {
   return h;
 }
 function phaseName() {
-  return { reinforce: 'placing armies', attack: 'attacking', occupy: 'moving into a captured territory', fortify: 'fortifying', over: 'game over' }[G.phase];
+  return { claim: 'claiming territories', deploy: 'placing starting armies', reinforce: 'placing armies', attack: 'attacking', occupy: 'moving into a captured territory', fortify: 'fortifying', over: 'game over' }[G.phase];
 }
 
 function terrBtn(id, act, t, extra, sub) {
@@ -661,6 +795,7 @@ function phaseView() {
     return `<h2 id="phase-h" tabindex="-1">Pass the device to ${esc(G.players[G.cur].name)}</h2>
       <button class="primary" id="takeover" data-act="takeover">I'm ${esc(G.players[G.cur].name)}, start my turn</button>`;
   }
+  if (inSetup(G)) return setupPhaseView();
   const p = G.cur, pl = G.players[p];
   if (G.phase === 'reinforce') {
     const inc = income(G, p);
@@ -755,6 +890,44 @@ function phaseView() {
   return '';
 }
 
+function neighborList(t) {
+  return 'Next to ' + ADJ[t].map(n => `${tname(n)} (${esc(ownerLabel(n))}${G.owner[n] === null ? '' : ', ' + G.armies[n]})`).join('; ') + '.';
+}
+function setupPhaseView() {
+  const p = G.cur;
+  if (G.phase === 'claim') {
+    const open = TIDS.filter(t => G.owner[t] === null);
+    let h = `<h2 id="phase-h" tabindex="-1">Claim a territory: ${open.length} still open</h2>
+      <p>You have claimed ${owned(G, p).length}. Each claim places 1 army.</p>`;
+    for (const c of Object.keys(CONT)) {
+      const ts = TIDS.filter(t => T[t].c === c), free = ts.filter(t => G.owner[t] === null);
+      if (!free.length) continue;
+      const mine = ts.filter(t => G.owner[t] === p).length;
+      h += `<h3>${CONT[c].name}, bonus ${CONT[c].bonus}: ${free.length} of ${ts.length} open, you hold ${mine}</h3><ul class="stack">` +
+        free.map(t => terrBtn('cl-' + t, 'claim', t, `Claim ${tname(t)}`, neighborList(t))).join('') + `</ul>`;
+    }
+    return h;
+  }
+  const N = neutralIdx(G), su = G.su;
+  const left = [su.own ? `${su.own} of yours` : '', su.neu ? `${su.neu} neutral` : ''].filter(Boolean).join(' and ');
+  let h = `<h2 id="phase-h" tabindex="-1">${N >= 0 ? `Place starting armies: ${left} this turn` : 'Place a starting army'}</h2>
+    <p>You have ${G.pool[p]} starting ${G.pool[p] === 1 ? 'army' : 'armies'} left to place${N >= 0 ? `. The neutral army has ${G.pool[N]}` : ''}.</p>`;
+  if (su.own) {
+    const mine = owned(G, p), borders = mine.filter(t => enemiesOf(G, t).length).sort((a, b) => G.armies[b] - G.armies[a]);
+    const inner = mine.filter(t => !enemiesOf(G, t).length);
+    h += `<h3>Your border territories</h3><ul class="stack">` + borders.map(t => terrBtn('sp-' + t, 'splace', t,
+      `Place 1 on ${tname(t)}, now ${G.armies[t]}`, enemyList(t))).join('') + `</ul>`;
+    if (inner.length) h += `<details><summary>Interior territories (${inner.length}, no enemy neighbors)</summary><ul class="stack">` +
+      inner.map(t => terrBtn('sp-' + t, 'splace', t, `Place 1 on ${tname(t)}, now ${G.armies[t]}`)).join('') + `</ul></details>`;
+  }
+  if (su.neu) {
+    h += `<h3 id="neu-h" tabindex="-1">Neutral territories</h3><p class="note">Neutral armies only defend. Put them where they block your opponent.</p><ul class="stack">` +
+      owned(G, N).sort((a, b) => ADJ[b].filter(x => G.owner[x] !== p && G.owner[x] !== N).length - ADJ[a].filter(x => G.owner[x] !== p && G.owner[x] !== N).length)
+        .map(t => terrBtn('sn-' + t, 'sneutral', t, `Place 1 neutral army on ${tname(t)}, now ${G.armies[t]}`, neighborList(t))).join('') + `</ul>`;
+  }
+  return h;
+}
+
 function recentView() {
   const items = G.log.slice(-12);
   return `<section aria-labelledby="recent-h"><h2 id="recent-h" tabindex="-1">Recent events</h2>
@@ -780,7 +953,7 @@ function boardView() {
     const ts = TIDS.filter(t => T[t].c === c);
     const holder = G.players.findIndex((_, i) => ts.every(t => G.owner[t] === i));
     h += `<h3>${CONT[c].name}: bonus ${CONT[c].bonus}, ${ts.length} territories${holder >= 0 ? `, held by ${esc(pname(holder))}` : ''}</h3><ul class="stack">` +
-      ts.map(t => `<li><strong>${tname(t)}</strong>: ${chip(G.owner[t])}${esc(ownerLabel(t))}, ${G.armies[t]} armies. Next to ${ADJ[t].map(n => tname(n) + (T[n].c !== c ? ` in ${CONT[T[n].c].name}` : '')).join(', ')}.</li>`).join('') + `</ul>`;
+      ts.map(t => `<li><strong>${tname(t)}</strong>: ${chip(G.owner[t])}${esc(ownerLabel(t))}${G.owner[t] === null ? '' : `, ${G.armies[t]} armies`}. Next to ${ADJ[t].map(n => tname(n) + (T[n].c !== c ? ` in ${CONT[T[n].c].name}` : '')).join(', ')}.</li>`).join('') + `</ul>`;
   }
   return h + `</details>`;
 }
@@ -799,6 +972,7 @@ function logView() {
 function rulesBlock() {
   return `<details><summary>How to play</summary>
     <p>The goal is to hold all 42 territories. Each turn has three steps.</p>
+    <p><strong>Setup.</strong> With 3 to 6 players, take turns claiming one empty territory at a time until all 42 are taken, then take turns placing the rest of your armies one at a time. Starting armies: 35 each for 3 players, 30 for 4, 25 for 5, 20 for 6. With 2 players, territories are dealt three ways: 14 each and 14 to a neutral army. Each side has 40 armies, and on each setup turn you place 2 of yours and 1 neutral. The neutral army never attacks and only defends, and you win by beating your opponent, whether or not neutral territories are left.</p>
     <p><strong>1. Place armies.</strong> You get one army for every three territories you hold, at least three. Holding a whole continent adds its bonus: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.</p>
     <p><strong>2. Attack</strong> as often as you like from any territory with at least 2 armies into an enemy neighbor. You roll up to 3 dice, always leaving one army behind; the defender rolls up to 2. The highest dice are compared in pairs, then the second highest. The higher die wins each pair and ties go to the defender. Each loss removes one army. When a territory is emptied you capture it and move armies in, at least as many as the dice you rolled.</p>
     <p><strong>3. Fortify.</strong> Make one move of armies between two of your territories connected through your own land. Then your turn ends.</p>
@@ -840,7 +1014,8 @@ function mapView() {
   for (const t of TIDS) {
     const [x, y] = MPOS[t], o = G.owner[t];
     if (mark.has(t)) svg += `<circle class="m-ring" cx="${x}" cy="${y}" r="24"/>`;
-    svg += `<circle class="m-node m-${G.players[o].color}" cx="${x}" cy="${y}" r="18"/><text class="m-n" x="${x}" y="${y}">${G.armies[t]}</text>`;
+    svg += o === null ? `<circle class="m-node m-open" cx="${x}" cy="${y}" r="18"/>`
+      : `<circle class="m-node m-${G.players[o].color}" cx="${x}" cy="${y}" r="18"/><text class="m-n" x="${x}" y="${y}">${G.armies[t]}</text>`;
     svg += `<text class="m-lbl" x="${x}" y="${y + 31}">${MSHORT[t] || T[t].name}</text>`;
   }
   svg += `</svg>`;
@@ -859,6 +1034,7 @@ document.addEventListener('change', e => {
   if (a === 'mode') { ui.mode = el.value; ui.setupPlayers = defaultPlayers(el.value === 'online' ? 'ai' : el.value); ui.onlineMsg = ''; render('mode-' + el.value); }
   if (a === 'pkind') { ui.setupPlayers[+el.dataset.i].kind = el.value; }
   if (a === 'step') { ui.step = el.value === 'all' ? 'all' : +el.value; render('step'); say(`Placing ${el.value === 'all' ? 'all remaining' : el.value} at a time.`); }
+  if (a === 'smode') { ui.setupMode = el.value; }
   if (a === 'aicount') { ui.aiCount = +el.value; render('ai-count'); }
   if (a === 'friendcount') { ui.friendCount = +el.value; ui.aiCount = Math.min(ui.aiCount || 0, 5 - ui.friendCount); render('friend-count'); }
 });
@@ -877,7 +1053,7 @@ function act(a, d, el) {
     case 'start': {
       const ps = ui.setupPlayers.map((p, i) => ({ name: (p.name || '').trim() || `Player ${i + 1}`, kind: p.kind }));
       if (!ps.some(p => p.kind === 'human')) ps[0].kind = 'human';
-      G = newGame(ps); G.online = false; ui.screen = 'game'; lastAnnounced = 0; ui.handoffFor = null; ui.lastResult = '';
+      G = newGame(ps, chosenSetup(ps.length)); G.online = false; ui.screen = 'game'; lastAnnounced = 0; ui.handoffFor = null; ui.lastResult = '';
       store(SAVE_KEY, G); afterStart(); return;
     }
     case 'resume': G = load(SAVE_KEY); ui.screen = 'game'; lastAnnounced = G.logId; ui.handoffFor = G.turn - 1; resetSel(); afterStart(); return;
@@ -891,6 +1067,9 @@ function act(a, d, el) {
       return;
     }
     case 'undo': { const u = undoPlace(G); if (u) say(`Took back ${u[1]} from ${tname(u[0])}. ${G.reserve} left.`, true); commit(G.placed.length ? 'undo' : 'phase-h'); return; }
+    case 'claim': return doSetup(t, null);
+    case 'splace': return doSetup(t, false);
+    case 'sneutral': return doSetup(t, true);
     case 'from': ui.from = t; ui.to = null; ui.lastResult = ''; render('phase-h'); return;
     case 'to': ui.to = t; ui.lastResult = ''; render('phase-h'); return;
     case 'backfrom': ui.from = null; render('phase-h'); return;
@@ -923,6 +1102,30 @@ function afterStart() {
   resetSel();
   if (G.players[G.cur].kind === 'ai') { render('phase-h'); say(`Game started. ${G.players[G.cur].name} goes first.`); maybeRunAI(); }
   else beginTurnView();
+}
+
+// neutral: null = claiming, false = own army, true = neutral army
+function doSetup(t, neutral) {
+  const name = tname(t);
+  if (neutral === null) {
+    if (!setupClaim(G, t)) return;
+    lastAnnounced = G.logId; ui.sFocus = null;
+    return afterTurnEnded(`Claimed ${name}.`);
+  }
+  const r = setupPlace(G, t, neutral);
+  if (!r) return;
+  lastAnnounced = G.logId;
+  const what = neutral ? `Placed 1 neutral army on ${name}` : `Placed 1 on ${name}`;
+  if (!neutral) ui.sFocus = 'sp-' + t;
+  if (r === 'more') {
+    const su = G.su, left = [su.own ? `${su.own} of yours` : '', su.neu ? `${su.neu} neutral` : ''].filter(Boolean).join(' and ');
+    say(`${what}, now ${G.armies[t]}. ${left} left this turn.`, true);
+    if (G.online) pushOnline(); else store(SAVE_KEY, G);
+    const f = neutral ? 'sn-' + t : 'sp-' + t;
+    render(); ($(f) || $(su.own ? (ui.sFocus || 'phase-h') : 'neu-h') || $('phase-h')).focus();
+    return;
+  }
+  afterTurnEnded(`${what}.`);
 }
 
 function diceText(r) {
@@ -1077,7 +1280,7 @@ async function createOnline() {
   const ps = [{ name: myName(), kind: 'human', uid: net.token }];
   for (let i = 0; i < friends; i++) ps.push({ name: 'Open seat', kind: 'human' });
   for (let i = 0; i < cpus; i++) ps.push({ name: `Computer ${i + 1}`, kind: 'ai' });
-  const g = newGame(ps); g.online = true; g.started = false; g.host = net.token; g.aiRunner = null;
+  const g = newGame(ps, chosenSetup(ps.length)); g.online = true; g.started = false; g.host = net.token; g.aiRunner = null;
   try {
     const code = await fbCreate(g);
     G = g; net.code = code; net.ver = 1; net.seat = 0; net.seenAt = Date.now(); lastAnnounced = G.logId;
@@ -1097,7 +1300,7 @@ async function joinOnline() {
       if (seat < 0) throw new Error(g.started ? 'That game has already started with every seat taken.' : 'That game is full.');
       g.players[seat].uid = net.token; g.players[seat].name = myName();
       addLog(g, seat, `{p${seat}} joined as ${g.players[seat].colorName}.`);
-      if (g.players.every(p => p.kind === 'ai' || p.uid)) {
+      if (g.players.every(p => p.kind !== 'human' || p.uid)) {
         g.started = true; g.aiRunner = net.token;
         addLog(g, -1, `Every seat is filled. The game begins. First turn: {p${g.cur}}.`);
       }
