@@ -165,7 +165,7 @@ function rollDie() { return 1 + rnd(6); }
 // setup: 'standard' = the rulebook setup (3-6 players claim territories one at a time; 2 players use the
 // official neutral-army rules), 'deal' = territories dealt at random then armies placed in turns,
 // 'random' = territories and armies all dealt at random.
-function newGame(players, setup = 'standard') {
+function newGame(players, setup = 'standard', opts = {}) {
   // players: [{name, kind:'human'|'ai', uid?}]
   const n = players.length, two = n === 2;
   if (two && setup === 'deal') setup = 'standard';
@@ -177,11 +177,15 @@ function newGame(players, setup = 'standard') {
   };
   // two players: a third, neutral army holds territories and only ever defends
   if (two) G.players.push({ name: 'Neutral', kind: 'neutral', uid: null, color: 'slate', colorName: 'Gray', cards: [], alive: true });
+  // house rule: after each round the neutral army takes a full turn, run by each player in turn
+  G.neutralTurns = two && !!opts.neutralTurns;
   TIDS.forEach(t => { G.owner[t] = null; G.armies[t] = 0; });
   G.pool = G.players.map(() => START_ARMIES[n]);
   G.deck = shuffle(TIDS.map((t, i) => ({ t, k: KINDS[i % 3] })).concat([{ t: null, k: 'Wild' }, { t: null, k: 'Wild' }]));
   G.first = G.cur = rnd(n);
+  G.neuNext = G.first;
   const first = `{p${G.first}}`;
+  const house = () => G.neutralTurns ? addLog(G, -1, `House rule: after each round, the neutral army takes a full turn with its own reinforcements. You take turns running it, starting with ${first}.`) : null;
   if (setup === 'standard' && !two) {
     G.phase = 'claim'; setupBeginTurn(G);
     addLog(G, -1, `New game with ${n} players, ${START_ARMIES[n]} armies each. Take turns claiming one empty territory at a time, starting with ${first}. When all 42 are claimed, take turns placing the rest of your armies.`);
@@ -193,17 +197,20 @@ function newGame(players, setup = 'standard') {
   if (setup === 'random') {
     seats.forEach(p => scatter(G, p));
     addLog(G, -1, `New game with ${n} players. ${dealt}, and starting armies were spread at random. First turn: ${first}.`);
-    G.pool = null; startTurn(G); return G;
+    house(); G.pool = null; startTurn(G); return G;
   }
   G.phase = 'deploy'; setupBeginTurn(G);
   addLog(G, -1, two
     ? `New two-player game. ${dealt}. Each side has 40 armies. Take turns placing 2 of your own armies and 1 neutral army, starting with ${first}.`
     : `New game with ${n} players, ${START_ARMIES[n]} armies each. ${dealt}. Take turns placing the rest of your armies one at a time, starting with ${first}.`);
+  house();
   return G;
 }
 
 // ---- Setup phases: 'claim' (pick empty territories) and 'deploy' (place remaining starting armies) ----
 const neutralIdx = G => G.players.findIndex(p => p.kind === 'neutral');
+// the player actually making the moves: the controller during a neutral turn
+const actor = G => G.players[G.cur].kind === 'neutral' ? G.ctl : G.cur;
 const inSetup = G => G.phase === 'claim' || G.phase === 'deploy';
 function scatter(G, p) {
   const mine = TIDS.filter(t => G.owner[t] === p);
@@ -357,7 +364,7 @@ function startTurn(G) {
   const inc = income(G, p);
   G.reserve = inc.total;
   const parts = [`${inc.base} for ${inc.count} territories`].concat(inc.conts.map(c => `${CONT[c].bonus} for holding ${CONT[c].name}`));
-  addLog(G, p, `Turn ${G.turn}, {p${p}}: ${inc.total} new armies (${parts.join(', ')}).`);
+  addLog(G, p, `Turn ${G.turn}, {p${p}}${G.players[p].kind === 'neutral' ? `, run by {p${G.ctl}},` : ':'} ${inc.total} new armies (${parts.join(', ')}).`);
   G.phase = 'reinforce';
   while (G.players[p].cards.length >= 5) { const s = bestSet(G, p); if (!s) break; trade(G, s); }
 }
@@ -403,14 +410,17 @@ function capture(G, from, to, ad, res) {
   if (owned(G, def).length === 0) {
     const dp = G.players[def]; dp.alive = false;
     if (dp.kind === 'neutral') addLog(G, p, `{p${p}} took the last neutral territory.`);
-    else {
+    else if (G.players[p].kind === 'neutral') {
+      res.eliminated = def; G.discard.push(...dp.cards); dp.cards = [];
+      addLog(G, p, `{p${p}} eliminated {p${def}}.`);
+    } else {
       res.eliminated = def;
       const n = dp.cards.length; G.players[p].cards.push(...dp.cards); dp.cards = [];
       addLog(G, p, `{p${p}} eliminated {p${def}}${n ? ` and took ${n} card${n > 1 ? 's' : ''}` : ''}.`);
     }
-    // the neutral army never has to be beaten
-    const alive = G.players.filter(x => x.alive && x.kind !== 'neutral').length;
-    if (alive === 1) { G.winner = p; G.phase = 'over'; addLog(G, p, `{p${p}} conquered the whole world. Game over.`); }
+    // the neutral army never has to be beaten, and it can't win
+    const left = G.players.map((x, i) => x.alive && x.kind !== 'neutral' ? i : -1).filter(i => i >= 0);
+    if (left.length === 1) { G.winner = left[0]; G.phase = 'over'; addLog(G, left[0], `{p${left[0]}} won the game.`); }
   }
   const max = G.armies[from] - 1, min = Math.min(ad, max);
   G.occupy = { from, to, min, max };
@@ -454,22 +464,33 @@ function drawCard(G) {
 function endTurn(G) {
   if (G.phase === 'over') return;
   const p = G.cur;
-  if (G.conquered) {
+  if (G.conquered && G.players[p].kind !== 'neutral') {
     const c = drawCard(G);
     if (c) { G.players[p].cards.push(c); addLog(G, p, `{p${p}} earned a card for capturing a territory this turn.`); }
   }
+  const N = neutralIdx(G), real = i => G.players[i].alive && G.players[i].kind !== 'neutral';
   let n = G.cur;
-  do { n = (n + 1) % G.players.length; } while (!G.players[n].alive || G.players[n].kind === 'neutral');
+  if (G.players[p].kind === 'neutral') { n = G.first; while (!real(n)) n = (n + 1) % G.players.length; }
+  else {
+    do { n = (n + 1) % G.players.length; } while (!real(n));
+    // house rule: once everyone has moved this round, the neutral army goes
+    if (G.neutralTurns && N >= 0 && G.players[N].alive && n === G.first) {
+      n = N; G.ctl = G.neuNext ?? G.first;
+      G.neuNext = G.players.findIndex((x, i) => i !== G.ctl && x.kind !== 'neutral');
+    }
+  }
   G.cur = n;
   startTurn(G);
 }
 
 // ---- Computer player ----
 function aiTurn(G) {
-  const p = G.cur, me = G.players[p];
-  if (me.kind !== 'ai' || G.phase === 'over') return;
+  const p = G.cur;
+  if (G.players[actor(G)].kind !== 'ai' || G.phase === 'over') return;
   if (inSetup(G)) { aiSetup(G); return; }
   const isNeutral = t => G.players[G.owner[t]].kind === 'neutral';
+  const runner = actor(G);
+  const targets = t => enemiesOf(G, t).filter(e => G.owner[e] !== runner);
   let s; while ((s = bestSet(G, p))) trade(G, s);
 
   const focusCont = () => {
@@ -486,7 +507,7 @@ function aiTurn(G) {
     const fc = focusCont();
     let best = null, bs = -1e9;
     for (const t of owned(G, p)) {
-      const en = enemiesOf(G, t); if (!en.length) continue;
+      const en = targets(t); if (!en.length) continue;
       const weakest = Math.min(...en.map(e => G.armies[e]));
       let sc = G.armies[t] - weakest + (en.some(e => T[e].c === fc) ? 8 : 0) + (T[t].c === fc ? 3 : 0);
       if (sc > bs) { bs = sc; best = t; }
@@ -500,7 +521,7 @@ function aiTurn(G) {
     const fc = focusCont(); let best = null, bs = 0;
     for (const f of owned(G, p)) {
       if (G.armies[f] < 3) continue;
-      for (const e of enemiesOf(G, f)) {
+      for (const e of targets(f)) {
         const diff = G.armies[f] - G.armies[e];
         if (diff < 2) continue;
         const defCount = owned(G, G.owner[e]).length;
@@ -570,7 +591,7 @@ function say(text, urgent) {
 function viewer() {
   if (!G) return -1;
   if (G.online) return net.seat ?? -1;
-  if (G.players[G.cur].kind === 'human') return G.cur;
+  if (G.players[actor(G)].kind === 'human') return actor(G);
   const humans = G.players.map((p, i) => p.kind === 'human' ? i : -1).filter(i => i >= 0);
   return humans.length === 1 ? humans[0] : -1;
 }
@@ -579,6 +600,7 @@ function fmt(s) {
   return s.replace(/\{p(\d+)\}/g, (m, i) => pname(+i)).replace(/(^|[.:!]\s+)you\b/g, (m, a) => a + 'You');
 }
 const who = i => `${esc(G.players[i].name)} (${G.players[i].colorName})`;
+const neuTurn = () => G && !inSetup(G) && G.players[G.cur].kind === 'neutral';
 const chip = i => `<span class="chip${i == null ? '' : ' p-' + G.players[i].color}" aria-hidden="true"></span>`;
 const tname = t => T[t].name;
 const ownerLabel = t => G.owner[t] === null ? 'open' : G.owner[t] === viewer() ? 'yours' : G.players[G.owner[t]].name;
@@ -614,8 +636,8 @@ function announceNew() {
 
 function isMyTurn() {
   if (!G || G.phase === 'over') return false;
-  if (G.online) return G.started && G.cur === net.seat;
-  return G.players[G.cur].kind === 'human';
+  if (G.online) return G.started && actor(G) === net.seat;
+  return G.players[actor(G)].kind === 'human';
 }
 
 // ---------- computer turns ----------
@@ -624,13 +646,13 @@ function maybeRunAI() {
   clearTimeout(aiTimer);
   if (!G || G.phase === 'over') return;
   if (G.online && (!G.started || G.aiRunner !== net.token)) return; // one device plays the computers' turns
-  if (G.players[G.cur].kind !== 'ai') return;
+  if (G.players[actor(G)].kind !== 'ai') return;
   aiTimer = setTimeout(() => {
-    if (!G || G.players[G.cur].kind !== 'ai') return;
+    if (!G || G.players[actor(G)].kind !== 'ai') return;
     aiTurn(G);
     resetSel();
     if (G.online) pushOnline(); else store(SAVE_KEY, G);
-    if (G.players[G.cur].kind === 'ai' && G.phase !== 'over') { render(); maybeRunAI(); return; }
+    if (G.players[actor(G)].kind === 'ai' && G.phase !== 'over') { render(); maybeRunAI(); return; }
     beginTurnView();
   }, inSetup(G) ? 250 : 700);
 }
@@ -640,9 +662,9 @@ function beginTurnView() {
   // called whenever control may have passed to a new person
   resetSel();
   const humans = G.players.filter(p => p.kind === 'human' && p.alive).length;
-  if (!G.online && humans > 1 && G.players[G.cur].kind === 'human' && G.phase === 'reinforce' && ui.handoffFor !== G.turn) {
+  if (!G.online && humans > 1 && G.players[actor(G)].kind === 'human' && G.phase === 'reinforce' && ui.handoffFor !== G.turn) {
     ui.handoff = true; ui.handoffFor = G.turn;
-    render('phase-h'); say(`Pass the device to ${G.players[G.cur].name}.`, true); return;
+    render('phase-h'); say(`Pass the device to ${G.players[actor(G)].name}${neuTurn() ? ', who runs the neutral army this turn' : ''}.`, true); return;
   }
   if (G.phase === 'deploy' && ui.sFocus) { render(); ($(ui.sFocus) || $('phase-h')).focus(); }
   else render('phase-h');
@@ -672,7 +694,8 @@ function setupModeField(n) {
   let cur = ui.setupMode || 'standard'; if (!opts.some(o => o[0] === cur)) cur = 'standard';
   return `<fieldset><legend>How to set up the board</legend><div class="stack">` + opts.map(([v, l, d]) =>
     `<label style="font-weight:400"><input type="radio" name="smode" id="smode-${v}" value="${v}" data-act="smode" ${cur === v ? 'checked' : ''}> <strong>${l}.</strong> ${d}</label>`).join('') +
-    `</div></fieldset>`;
+    `</div></fieldset>` + (n === 2 ? `<p><label style="font-weight:400"><input type="checkbox" id="neu-turns" data-act="neuturns" ${ui.neutralTurns ? 'checked' : ''}>
+      <strong>House rule: the neutral army fights.</strong> After each round it takes a full turn with its own reinforcements, and you take turns running it.</label></p>` : '');
 }
 function chosenSetup(n) { const m = ui.setupMode || 'standard'; return n === 2 && m === 'deal' ? 'standard' : m; }
 function setupView() {
@@ -740,7 +763,7 @@ function lobbyView() {
     <p>Game code:</p><p class="code" aria-label="${spelled}">${net.code}</p>
     <p>Send your friends the game's link and this code. They choose “Online with a friend”, type their name, enter the code, and choose Join game. The game starts when every seat is filled, and this page will tell you as each person joins.</p>
     <h3>Seats</h3><ul class="stack">${seats}</ul>
-    <p class="note">Board setup: ${{ standard: neutralIdx(G) >= 0 ? 'official two-player rules, with a neutral army' : 'classic, claiming territories in turns', deal: 'territories dealt, then armies placed in turns', random: 'quick start, all dealt at random' }[G.setup || 'random']}.</p>
+    <p class="note">Board setup: ${{ standard: neutralIdx(G) >= 0 ? 'official two-player rules, with a neutral army' : 'classic, claiming territories in turns', deal: 'territories dealt, then armies placed in turns', random: 'quick start, all dealt at random' }[G.setup || 'random']}.${G.neutralTurns ? ' House rule on: the neutral army takes turns, run by each of you in turn.' : ''}</p>
     <div class="row" style="margin-top:12px"><button id="copy" data-act="copy">Copy the code</button>
       ${host ? `<button id="start-now" data-act="startnow">Start now, with computers in the open seats</button>` : ''}
       <button id="leave" data-act="leave">Leave and go back</button></div></section>`;
@@ -751,7 +774,7 @@ function gameView() {
   const me = viewer();
   const cp = G.players[G.cur];
   let h = `<section aria-labelledby="status-h"><h2 id="status-h" class="sr">Status</h2>
-    <p class="status">${G.phase === 'over' ? 'Game over.' : `${inSetup(G) ? 'Setup' : `Turn ${G.turn}`}. ${chip(G.cur)}${G.cur === me ? '<strong>Your turn</strong>' : `${who(G.cur)}'s turn`}, ${phaseName()}.`}
+    <p class="status">${G.phase === 'over' ? 'Game over.' : `${inSetup(G) ? 'Setup' : `Turn ${G.turn}`}. ${chip(G.cur)}${neuTurn() ? `Neutral army's turn, run by ${G.ctl === me ? '<strong>you</strong>' : esc(G.players[G.ctl].name)}` : G.cur === me ? '<strong>Your turn</strong>' : `${who(G.cur)}'s turn`}, ${phaseName()}.`}
     ${me >= 0 ? ` You hold ${owned(G, me).length} territor${owned(G, me).length === 1 ? 'y' : 'ies'} and ${G.players[me].cards.length} card${G.players[me].cards.length === 1 ? '' : 's'}.` : ''}</p></section>`;
   h += `<p><button id="map-toggle" aria-pressed="${ui.showMap}" data-act="maptoggle">${ui.showMap ? 'Hide' : 'Show'} the board diagram (for sighted players)</button></p>`;
   if (ui.showMap) h += mapView();
@@ -787,15 +810,28 @@ function phaseView() {
       <p>Game finished on turn ${G.turn}.</p><button class="primary" id="again" data-act="newyes">Start a new game</button>`;
   }
   if (!isMyTurn()) {
-    const cp = G.players[G.cur];
-    return `<h2 id="phase-h" tabindex="-1">Waiting for ${esc(cp.name)}</h2>
+    const cp = G.players[actor(G)];
+    return `<h2 id="phase-h" tabindex="-1">Waiting for ${esc(cp.name)}${neuTurn() ? ', running the neutral army' : ''}</h2>
       <p>${cp.kind === 'ai' ? 'The computer is taking its turn.' : `${esc(cp.name)} is ${phaseName()}.`} New events will be read out as they happen and listed under Recent events.</p>`;
   }
   if (ui.handoff) {
-    return `<h2 id="phase-h" tabindex="-1">Pass the device to ${esc(G.players[G.cur].name)}</h2>
-      <button class="primary" id="takeover" data-act="takeover">I'm ${esc(G.players[G.cur].name)}, start my turn</button>`;
+    const a = esc(G.players[actor(G)].name);
+    return `<h2 id="phase-h" tabindex="-1">Pass the device to ${a}${neuTurn() ? ' to run the neutral army' : ''}</h2>
+      <button class="primary" id="takeover" data-act="takeover">I'm ${a}, start ${neuTurn() ? 'the neutral turn' : 'my turn'}</button>`;
   }
   if (inSetup(G)) return setupPhaseView();
+  if (neuTurn()) {
+    const swaps = [['Place your armies', 'Place the neutral armies'], ['This turn you get', 'This turn the neutral army gets'], ['Your border territories', 'Neutral border territories'],
+      ['None of your territories can attack', 'No neutral territory can attack'], ['End turn without moving', 'End the neutral turn without moving'],
+      ['then your turn ends', 'then the neutral turn ends'], ['Move armies from one territory to another of yours', 'Move armies between two neutral territories'],
+      ['through your own territories', 'through neutral territories'], ['then end your turn', 'then end the neutral turn'], ['and end turn', 'and end the neutral turn']];
+    let h = turnPanel(); for (const [a, b] of swaps) h = h.split(a).join(b);
+    return h.replace('</h2>', '</h2><p class="note">You are running the neutral army this turn. It can attack either of you.</p>');
+  }
+  return turnPanel();
+}
+function turnPanel() {
+  const me = viewer();
   const p = G.cur, pl = G.players[p];
   if (G.phase === 'reinforce') {
     const inc = income(G, p);
@@ -973,6 +1009,7 @@ function rulesBlock() {
   return `<details><summary>How to play</summary>
     <p>The goal is to hold all 42 territories. Each turn has three steps.</p>
     <p><strong>Setup.</strong> With 3 to 6 players, take turns claiming one empty territory at a time until all 42 are taken, then take turns placing the rest of your armies one at a time. Starting armies: 35 each for 3 players, 30 for 4, 25 for 5, 20 for 6. With 2 players, territories are dealt three ways: 14 each and 14 to a neutral army. Each side has 40 armies, and on each setup turn you place 2 of yours and 1 neutral. The neutral army never attacks and only defends, and you win by beating your opponent, whether or not neutral territories are left.</p>
+    <p><strong>Optional house rule for two players.</strong> After each round, the neutral army takes a full turn: it gets reinforcements the normal way, attacks, and fortifies. You take turns running it, starting with the player who went first. It can attack either of you, but it never earns cards and it can't win.</p>
     <p><strong>1. Place armies.</strong> You get one army for every three territories you hold, at least three. Holding a whole continent adds its bonus: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.</p>
     <p><strong>2. Attack</strong> as often as you like from any territory with at least 2 armies into an enemy neighbor. You roll up to 3 dice, always leaving one army behind; the defender rolls up to 2. The highest dice are compared in pairs, then the second highest. The higher die wins each pair and ties go to the defender. Each loss removes one army. When a territory is emptied you capture it and move armies in, at least as many as the dice you rolled.</p>
     <p><strong>3. Fortify.</strong> Make one move of armies between two of your territories connected through your own land. Then your turn ends.</p>
@@ -1035,6 +1072,7 @@ document.addEventListener('change', e => {
   if (a === 'pkind') { ui.setupPlayers[+el.dataset.i].kind = el.value; }
   if (a === 'step') { ui.step = el.value === 'all' ? 'all' : +el.value; render('step'); say(`Placing ${el.value === 'all' ? 'all remaining' : el.value} at a time.`); }
   if (a === 'smode') { ui.setupMode = el.value; }
+  if (a === 'neuturns') { ui.neutralTurns = el.checked; }
   if (a === 'aicount') { ui.aiCount = +el.value; render('ai-count'); }
   if (a === 'friendcount') { ui.friendCount = +el.value; ui.aiCount = Math.min(ui.aiCount || 0, 5 - ui.friendCount); render('friend-count'); }
 });
@@ -1053,7 +1091,7 @@ function act(a, d, el) {
     case 'start': {
       const ps = ui.setupPlayers.map((p, i) => ({ name: (p.name || '').trim() || `Player ${i + 1}`, kind: p.kind }));
       if (!ps.some(p => p.kind === 'human')) ps[0].kind = 'human';
-      G = newGame(ps, chosenSetup(ps.length)); G.online = false; ui.screen = 'game'; lastAnnounced = 0; ui.handoffFor = null; ui.lastResult = '';
+      G = newGame(ps, chosenSetup(ps.length), { neutralTurns: ui.neutralTurns }); G.online = false; ui.screen = 'game'; lastAnnounced = 0; ui.handoffFor = null; ui.lastResult = '';
       store(SAVE_KEY, G); afterStart(); return;
     }
     case 'resume': G = load(SAVE_KEY); ui.screen = 'game'; lastAnnounced = G.logId; ui.handoffFor = G.turn - 1; resetSel(); afterStart(); return;
@@ -1100,7 +1138,7 @@ function act(a, d, el) {
 
 function afterStart() {
   resetSel();
-  if (G.players[G.cur].kind === 'ai') { render('phase-h'); say(`Game started. ${G.players[G.cur].name} goes first.`); maybeRunAI(); }
+  if (G.players[actor(G)].kind === 'ai') { render('phase-h'); say(`Game started. ${G.players[G.cur].name} goes first.`); maybeRunAI(); }
   else beginTurnView();
 }
 
@@ -1140,7 +1178,7 @@ function doAttack(blitz) {
   let text = blitz ? `${plural(rounds, 'round')} of dice. ${tname(f)} lost ${startA - G.armies[f]}, ${tname(to)} lost ${startD - (r.captured ? 0 : G.armies[to])}. ` : diceText(r) + ' ';
   if (r.captured) {
     text += `You captured ${tname(to)}!`;
-    if (r.eliminated !== null) text += ` ${G.players[r.eliminated].name} is eliminated and you take their cards.`;
+    if (r.eliminated !== null) text += ` ${G.players[r.eliminated].name} is eliminated${neuTurn() ? '' : ' and you take their cards'}.`;
     if (G.phase === 'over') { lastAnnounced = G.logId; say(text + ' You have conquered the world!', true); commit('phase-h'); return; }
     ui.lastResult = text; lastAnnounced = G.logId;
     if (G.occupy.max === G.occupy.min) { // no choice to make
@@ -1174,8 +1212,8 @@ function finishTurn(msg) { endTurn(G); afterTurnEnded(msg); }
 function afterTurnEnded(msg) {
   resetSel(); ui.lastResult = '';
   if (G.online) { G.aiRunner = net.token; pushOnline(); } else store(SAVE_KEY, G);
-  say(msg + ' ' + (G.players[G.cur].kind === 'ai' ? `${G.players[G.cur].name} is moving.` : ''), true);
-  if (G.players[G.cur].kind === 'ai') { render('phase-h'); maybeRunAI(); }
+  say(msg + ' ' + (G.players[actor(G)].kind === 'ai' ? `${G.players[G.cur].name} is moving.` : ''), true);
+  if (G.players[actor(G)].kind === 'ai') { render('phase-h'); maybeRunAI(); }
   else beginTurnView();
 }
 
@@ -1251,7 +1289,7 @@ function fbStop() {
 // if the device running the computers' turns has gone quiet, another seated player takes over
 function stallCheck() {
   if (!G || !G.online || !G.started || G.phase === 'over' || net.seat < 0) return;
-  if (G.players[G.cur].kind !== 'ai' || G.aiRunner === net.token) return;
+  if (G.players[actor(G)].kind !== 'ai' || G.aiRunner === net.token) return;
   if (Date.now() - net.seenAt > 20000) { G.aiRunner = net.token; maybeRunAI(); }
 }
 
@@ -1280,7 +1318,7 @@ async function createOnline() {
   const ps = [{ name: myName(), kind: 'human', uid: net.token }];
   for (let i = 0; i < friends; i++) ps.push({ name: 'Open seat', kind: 'human' });
   for (let i = 0; i < cpus; i++) ps.push({ name: `Computer ${i + 1}`, kind: 'ai' });
-  const g = newGame(ps, chosenSetup(ps.length)); g.online = true; g.started = false; g.host = net.token; g.aiRunner = null;
+  const g = newGame(ps, chosenSetup(ps.length), { neutralTurns: ui.neutralTurns }); g.online = true; g.started = false; g.host = net.token; g.aiRunner = null;
   try {
     const code = await fbCreate(g);
     G = g; net.code = code; net.ver = 1; net.seat = 0; net.seenAt = Date.now(); lastAnnounced = G.logId;
