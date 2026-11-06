@@ -30,10 +30,10 @@ Choose how the board is set up when you start a game:
 ## How a turn works
 
 1. **Place armies:** one for every three territories you hold (at least three), plus continent bonuses: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.
-2. **Attack** from any territory with at least 2 armies. You roll up to 3 dice and the defender rolls up to 2. Ties go to the defender.
+2. **Attack** from any territory with at least 2 armies. You choose 1 to 3 dice (always leaving one army behind); the defender rolls 2 when it has 2 or more armies. Ties go to the defender.
 3. **Fortify:** make one move between connected territories you hold.
 
-Capture a territory in a turn to earn a card. Trade sets of three for growing numbers of armies.
+Capture a territory in a turn to earn a card. Trade sets of three, chosen by you, for growing numbers of armies (4, 6, 8, 10, 12, 15, then 5 more each time). A traded card showing a territory you hold puts 2 extra armies there, once per turn. With 5 or more cards you must trade at the start of your turn, and if eliminating a player leaves you with 6 or more, you trade down to 4 or fewer right away.
 
 ## Files
 

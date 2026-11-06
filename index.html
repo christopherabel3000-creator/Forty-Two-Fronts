@@ -344,14 +344,21 @@ function bestSet(G, p) {
   return best;
 }
 
-function trade(G, idxs) {
+// territories on these cards that earn the 2-army bonus (only once per turn)
+function bonusOptions(G, cards) {
+  if (G.bonusUsed) return [];
+  return [...new Set(cards.filter(c => c.t && G.owner[c.t] === G.cur).map(c => c.t))];
+}
+function trade(G, idxs, bonusT) {
   const p = G.cur; const pl = G.players[p];
   const cards = idxs.map(i => pl.cards[i]);
+  if (!isSet(cards)) return null;
   const value = tradeValue(G.trades); G.trades++;
   G.reserve += value;
   let extra = '';
-  const match = cards.find(c => c.t && G.owner[c.t] === p);
-  if (match) { G.armies[match.t] += 2; extra = ` Plus 2 armies placed on ${T[match.t].name}, a territory shown on one of the cards.`; }
+  const opts = bonusOptions(G, cards);
+  const bt = opts.includes(bonusT) ? bonusT : opts[0];
+  if (bt) { G.armies[bt] += 2; G.bonusUsed = true; extra = ` Plus 2 armies placed on ${T[bt].name}, a territory shown on one of the cards.`; }
   idxs.slice().sort((a, b) => b - a).forEach(i => G.discard.push(pl.cards.splice(i, 1)[0]));
   addLog(G, p, `{p${p}} traded in ${cards.map(c => c.k).join(', ')} for ${value} armies.${extra}`);
   return { value, extra };
@@ -360,18 +367,20 @@ function trade(G, idxs) {
 function startTurn(G) {
   G.turn++;
   const p = G.cur;
-  G.conquered = false; G.occupy = null; G.afterCapture = false; G.placed = [];
+  G.conquered = false; G.occupy = null; G.afterCapture = false; G.placed = []; G.bonusUsed = false;
   const inc = income(G, p);
   G.reserve = inc.total;
   const parts = [`${inc.base} for ${inc.count} territories`].concat(inc.conts.map(c => `${CONT[c].bonus} for holding ${CONT[c].name}`));
   addLog(G, p, `Turn ${G.turn}, {p${p}}${G.players[p].kind === 'neutral' ? `, run by {p${G.ctl}},` : ':'} ${inc.total} new armies (${parts.join(', ')}).`);
   G.phase = 'reinforce';
-  while (G.players[p].cards.length >= 5) { const s = bestSet(G, p); if (!s) break; trade(G, s); }
+  if (G.players[p].kind === 'ai') while (G.players[p].cards.length >= 5) { const s = bestSet(G, p); if (!s) break; trade(G, s); }
 }
+// with 5 or more cards you must trade before placing (at the start of a turn, or down to 4 after taking a player's cards)
+const mustTrade = G => G.phase === 'reinforce' && G.players[G.cur].cards.length >= 5 && !!bestSet(G, G.cur);
 
 function place(G, t, n) {
   n = Math.min(n, G.reserve);
-  if (G.phase !== 'reinforce' || G.owner[t] !== G.cur || n < 1) return false;
+  if (G.phase !== 'reinforce' || G.owner[t] !== G.cur || n < 1 || mustTrade(G)) return false;
   G.armies[t] += n; G.reserve -= n; G.placed.push([t, n]);
   if (G.reserve === 0) {
     const sum = {}; G.placed.forEach(([x, k]) => sum[x] = (sum[x] || 0) + k);
@@ -390,9 +399,9 @@ function undoPlace(G) {
 const canAttackFrom = (G, t) => G.owner[t] === G.cur && G.armies[t] >= 2 && enemiesOf(G, t).length > 0;
 
 // one round of dice. returns result object
-function attackRoll(G, from, to) {
+function attackRoll(G, from, to, nd = 3) {
   const a = G.armies[from], d = G.armies[to];
-  const ad = Math.min(3, a - 1), dd = Math.min(2, d);
+  const ad = Math.max(1, Math.min(3, a - 1, nd)), dd = Math.min(2, d);
   const A = Array.from({ length: ad }, rollDie).sort((x, y) => y - x);
   const D = Array.from({ length: dd }, rollDie).sort((x, y) => y - x);
   let al = 0, dl = 0;
@@ -432,11 +441,13 @@ function occupy(G, n) {
   const o = G.occupy; if (!o) return;
   n = Math.max(o.min, Math.min(o.max, n));
   G.armies[o.from] -= n; G.armies[o.to] += n; G.occupy = null;
-  // eliminating someone can leave 6+ cards: must trade down to 4 and place them now
+  // eliminating someone can leave 6+ cards: trade down to 4 or fewer and place them now
   const p = G.cur; let got = 0;
-  while (G.players[p].cards.length >= 6) { const s = bestSet(G, p); if (!s) break; got += trade(G, s).value; }
-  if (G.reserve > 0) { G.phase = 'reinforce'; G.afterCapture = true; G.placed = []; }
-  else G.phase = 'attack';
+  if (G.players[p].cards.length >= 6) {
+    if (G.players[actor(G)].kind === 'ai') while (G.players[p].cards.length > 4) { const s = bestSet(G, p); if (!s) break; got += trade(G, s).value; }
+    G.phase = 'reinforce'; G.afterCapture = true; G.placed = [];
+    if (!mustTrade(G) && G.reserve === 0) G.phase = 'attack';
+  } else G.phase = 'attack';
   return got;
 }
 
@@ -656,7 +667,7 @@ function maybeRunAI() {
     beginTurnView();
   }, inSetup(G) ? 250 : 700);
 }
-function resetSel() { ui.from = ui.to = ui.ffrom = ui.fto = null; }
+function resetSel() { ui.from = ui.to = ui.ffrom = ui.fto = null; ui.pick = []; }
 
 function beginTurnView() {
   // called whenever control may have passed to a new person
@@ -839,13 +850,15 @@ function turnPanel() {
     const borders = owned(G, p).filter(t => enemiesOf(G, t).length).sort((a, b) => G.armies[b] - G.armies[a]);
     const inner = owned(G, p).filter(t => !enemiesOf(G, t).length);
     const step = Math.min(ui.step === 'all' ? G.reserve : ui.step, G.reserve);
-    let h = `<h2 id="phase-h" tabindex="-1">Place your armies: ${G.reserve} left</h2>`;
-    h += G.afterCapture ? `<p>You traded cards after eliminating a player. Place these armies, then you'll go back to attacking.</p>`
-      : `<p>This turn you get ${inc.total}: ${inc.base} for ${inc.count} territories${inc.conts.map(c => `, ${CONT[c].bonus} for ${CONT[c].name}`).join('')}${G.reserve > inc.total ? ', plus cards traded in' : ''}.</p>`;
-    if (set && !G.afterCapture) {
-      const cs = set.map(i => pl.cards[i].k).join(', ');
-      h += `<p><button class="primary" id="trade" data-act="trade">Trade in ${cs} for ${tradeValue(G.trades)} more armies</button></p>`;
-    }
+    const must = mustTrade(G);
+    let h = must
+      ? `<h2 id="phase-h" tabindex="-1">Trade in cards first: you have ${pl.cards.length}</h2>
+         <p>${G.afterCapture ? "After taking a player's cards you must trade down to 4 or fewer." : 'With 5 or more cards you must trade in a set before placing armies.'}${G.reserve ? ` You already have ${G.reserve} armies waiting to be placed.` : ''}</p>`
+      : `<h2 id="phase-h" tabindex="-1">Place your armies: ${G.reserve} left</h2>` + (G.afterCapture
+        ? `<p>Place the armies from your traded cards, then you'll go back to attacking.</p>`
+        : `<p>This turn you get ${inc.total}: ${inc.base} for ${inc.count} territories${inc.conts.map(c => `, ${CONT[c].bonus} for ${CONT[c].name}`).join('')}${G.reserve > inc.total ? ', plus cards traded in' : ''}.</p>`);
+    if (set && (!G.afterCapture || must)) h += cardsPanel(p, set, must);
+    if (must) return h;
     h += `<div class="field"><label for="step">Armies to place with each choice</label><select id="step" data-act="step">
       ${[1, 3, 5, 'all'].map(v => `<option value="${v}" ${ui.step === v ? 'selected' : ''}>${v === 'all' ? 'All remaining' : v}</option>`).join('')}</select></div>`;
     h += `<h3>Your border territories</h3><ul class="stack">` + borders.map(t => terrBtn('pl-' + t, 'place', t,
@@ -874,11 +887,13 @@ function turnPanel() {
         <button id="end-attack" data-act="endattack">Done attacking, go to fortify</button></div>`;
       return h;
     }
-    const a = G.armies[ui.from], d = G.armies[ui.to];
+    const a = G.armies[ui.from], d = G.armies[ui.to], maxD = Math.min(3, a - 1), nd = Math.min(ui.dice || 3, maxD);
     h = `<h2 id="phase-h" tabindex="-1">${tname(ui.from)} (${a}) attacking ${tname(ui.to)} (${esc(ownerLabel(ui.to))}, ${d})</h2>` + h;
+    if (maxD > 1) h += `<div class="field"><label for="adice">Dice to attack with</label><select id="adice" data-act="adice">
+      ${Array.from({ length: maxD }, (_, i) => i + 1).map(n => `<option value="${n}" ${n === nd ? 'selected' : ''}>${n}${n === maxD ? ' (most)' : ''}</option>`).join('')}</select></div>`;
     h += `<ul class="stack">
-      <li><button class="primary choice" id="roll" data-act="roll">Roll once<span class="sub">You roll ${Math.min(3, a - 1)}, they roll ${Math.min(2, d)}</span></button></li>
-      <li><button class="choice" id="blitz" data-act="blitz">Keep attacking until you capture it or run out<span class="sub">Stops when ${tname(ui.from)} is down to 1 army</span></button></li>
+      <li><button class="primary choice" id="roll" data-act="roll">Roll ${nd} ${nd === 1 ? 'die' : 'dice'}<span class="sub">They roll ${Math.min(2, d)}. If you capture, you must move in at least ${nd}</span></button></li>
+      <li><button class="choice" id="blitz" data-act="blitz">Keep attacking until you capture it or run out<span class="sub">Always rolls the most dice. Stops when ${tname(ui.from)} is down to 1 army</span></button></li>
       <li><button class="choice" id="back-to" data-act="backto">Choose a different target</button></li>
       <li><button class="choice" id="end-attack" data-act="endattack">Done attacking, go to fortify</button></li></ul>`;
     return h;
@@ -964,6 +979,30 @@ function setupPhaseView() {
   return h;
 }
 
+function cardLabel(c, p) {
+  return c.k + (c.t ? `, ${tname(c.t)}${G.owner[c.t] === p ? ' (yours)' : ''}` : '');
+}
+function cardsPanel(p, set, must) {
+  const pl = G.players[p], val = tradeValue(G.trades);
+  ui.pick = (ui.pick || []).filter(i => i < pl.cards.length);
+  const quickOpts = bonusOptions(G, set.map(i => pl.cards[i]));
+  let h = `<p><button class="primary" id="trade" data-act="trade">Trade ${set.map(i => cardLabel(pl.cards[i], p)).join('; ')} for ${val} armies${quickOpts.length ? `, plus 2 on ${tname(quickOpts[0])}` : ''}</button></p>`;
+  let pick = `<p class="note">Pick any 3 cards: three of a kind, one of each kind, or any two with a wild.${G.bonusUsed ? ' You already got the 2-army territory bonus this turn.' : ' If a card shows a territory you hold, you get 2 extra armies there, once per turn.'}</p><ul class="stack">` +
+    pl.cards.map((c, i) => `<li><button class="choice" id="cd-${i}" data-act="cardpick" data-i="${i}" aria-pressed="${ui.pick.includes(i)}">${esc(cardLabel(c, p))}</button></li>`).join('') + `</ul>`;
+  if (ui.pick.length === 3) {
+    const cs = ui.pick.map(i => pl.cards[i]);
+    if (!isSet(cs)) pick += `<p id="pick-note">Those three aren't a set.</p>`;
+    else {
+      const opts = bonusOptions(G, cs);
+      pick += `<ul class="stack" style="margin-top:8px">` + (opts.length > 1
+        ? opts.map(t => `<li><button class="primary choice" id="tp-${t}" data-act="tradepick" data-t="${t}">Trade these for ${val} armies, with the 2 bonus armies on ${tname(t)}</button></li>`).join('')
+        : `<li><button class="primary choice" id="tp-go" data-act="tradepick" data-t="${opts[0] || ''}">Trade these for ${val} armies${opts.length ? `, plus 2 on ${tname(opts[0])}` : ''}</button></li>`) + `</ul>`;
+    }
+  }
+  h += must ? `<h3>Or choose your own set</h3>${pick}` : `<details${ui.pick.length ? ' open' : ''}><summary>Choose which cards to trade</summary>${pick}</details>`;
+  return h;
+}
+
 function recentView() {
   const items = G.log.slice(-12);
   return `<section aria-labelledby="recent-h"><h2 id="recent-h" tabindex="-1">Recent events</h2>
@@ -1011,9 +1050,9 @@ function rulesBlock() {
     <p><strong>Setup.</strong> With 3 to 6 players, take turns claiming one empty territory at a time until all 42 are taken, then take turns placing the rest of your armies one at a time. Starting armies: 35 each for 3 players, 30 for 4, 25 for 5, 20 for 6. With 2 players, territories are dealt three ways: 14 each and 14 to a neutral army. Each side has 40 armies, and on each setup turn you place 2 of yours and 1 neutral. The neutral army never attacks and only defends, and you win by beating your opponent, whether or not neutral territories are left.</p>
     <p><strong>Optional house rule for two players.</strong> After each round, the neutral army takes a full turn: it gets reinforcements the normal way, attacks, and fortifies. You take turns running it, starting with the player who went first. It can attack either of you, but it never earns cards and it can't win.</p>
     <p><strong>1. Place armies.</strong> You get one army for every three territories you hold, at least three. Holding a whole continent adds its bonus: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.</p>
-    <p><strong>2. Attack</strong> as often as you like from any territory with at least 2 armies into an enemy neighbor. You roll up to 3 dice, always leaving one army behind; the defender rolls up to 2. The highest dice are compared in pairs, then the second highest. The higher die wins each pair and ties go to the defender. Each loss removes one army. When a territory is emptied you capture it and move armies in, at least as many as the dice you rolled.</p>
+    <p><strong>2. Attack</strong> as often as you like from any territory with at least 2 armies into an enemy neighbor. You choose to roll 1, 2 or 3 dice, with at least one more army than dice in the attacking territory; the defender rolls 2 if it has 2 or more armies. The highest dice are compared in pairs, then the second highest. The higher die wins each pair and ties go to the defender. Each loss removes one army. When a territory is emptied you capture it and move armies in, at least as many as the dice you rolled.</p>
     <p><strong>3. Fortify.</strong> Make one move of armies between two of your territories connected through your own land. Then your turn ends.</p>
-    <p><strong>Cards.</strong> Capture at least one territory in a turn to earn a card. Three of a kind, one of each kind, or any set with a wild card trades for armies: 4, then 6, 8, 10, 12, 15, and 5 more each time after that. If a traded card shows a territory you hold, 2 extra armies go there. With 5 or more cards you must trade at the start of your turn. Eliminate a player and you take their cards.</p>
+    <p><strong>Cards.</strong> Capture at least one territory in a turn to earn a card. Three of a kind, one of each kind, or any set with a wild card trades for armies: 4, then 6, 8, 10, 12, 15, and 5 more each time after that. You choose which three to trade. If a traded card shows a territory you hold, 2 extra armies go there, once per turn. With 5 or more cards you must trade at the start of your turn. Eliminate a player and you take their cards; if that leaves you with 6 or more, you must trade right away until you have 4 or fewer.</p>
   </details>`;
 }
 
@@ -1070,6 +1109,7 @@ document.addEventListener('change', e => {
   const el = e.target, a = el.dataset.act; if (!a) return;
   if (a === 'mode') { ui.mode = el.value; ui.setupPlayers = defaultPlayers(el.value === 'online' ? 'ai' : el.value); ui.onlineMsg = ''; render('mode-' + el.value); }
   if (a === 'pkind') { ui.setupPlayers[+el.dataset.i].kind = el.value; }
+  if (a === 'adice') { ui.dice = +el.value; render('adice'); say(`Attacking with ${el.value}.`); }
   if (a === 'step') { ui.step = el.value === 'all' ? 'all' : +el.value; render('step'); say(`Placing ${el.value === 'all' ? 'all remaining' : el.value} at a time.`); }
   if (a === 'smode') { ui.setupMode = el.value; }
   if (a === 'neuturns') { ui.neutralTurns = el.checked; }
@@ -1096,7 +1136,18 @@ function act(a, d, el) {
     }
     case 'resume': G = load(SAVE_KEY); ui.screen = 'game'; lastAnnounced = G.logId; ui.handoffFor = G.turn - 1; resetSel(); afterStart(); return;
     case 'takeover': ui.handoff = false; render('phase-h'); announceNew(); return;
-    case 'trade': { const r = trade(G, bestSet(G, G.cur)); lastAnnounced = G.logId; say(`Traded for ${r.value} armies.${r.extra} ${G.reserve} to place.`, true); commit('phase-h'); return; }
+    case 'trade': return doTrade(bestSet(G, G.cur));
+    case 'tradepick': return doTrade(ui.pick.slice(), d.t || null);
+    case 'cardpick': {
+      const i = +d.i, c = G.players[G.cur].cards[i];
+      if (ui.pick.includes(i)) ui.pick = ui.pick.filter(x => x !== i);
+      else if (ui.pick.length >= 3) { say('You already picked 3 cards. Unpick one first.', true); return; }
+      else ui.pick.push(i);
+      render('cd-' + i);
+      const cs = ui.pick.map(x => G.players[G.cur].cards[x]);
+      say(`${ui.pick.includes(i) ? 'Picked' : 'Unpicked'} ${c.k}. ${ui.pick.length} of 3 picked.${ui.pick.length === 3 ? (isSet(cs) ? ' That is a set; the trade button is below.' : " That isn't a set.") : ''}`);
+      return;
+    }
     case 'place': {
       const n = Math.min(ui.step === 'all' ? G.reserve : ui.step, G.reserve);
       place(G, t, n); lastAnnounced = G.logId;
@@ -1166,6 +1217,14 @@ function doSetup(t, neutral) {
   afterTurnEnded(`${what}.`);
 }
 
+function doTrade(idxs, bonusT) {
+  const r = idxs && trade(G, idxs, bonusT);
+  if (!r) return;
+  ui.pick = []; lastAnnounced = G.logId;
+  const must = mustTrade(G), n = G.players[G.cur].cards.length;
+  say(`Traded for ${r.value} armies.${r.extra} ` + (must ? `You still have ${n} cards and must trade again.` : `${G.reserve} to place.`), true);
+  commit('phase-h');
+}
 function diceText(r) {
   return `You rolled ${r.A.join(', ')}. Defender rolled ${r.D.join(', ')}. ` +
     (r.al === 0 ? `Defender lost ${r.dl}.` : r.dl === 0 ? `You lost ${r.al}.` : `You lost ${r.al}, defender lost ${r.dl}.`);
@@ -1174,7 +1233,7 @@ function doAttack(blitz) {
   const f = ui.from, to = ui.to, def = G.owner[to];
   const startA = G.armies[f], startD = G.armies[to];
   let r, rounds = 0;
-  do { r = attackRoll(G, f, to); rounds++; } while (blitz && !r.captured && G.armies[f] >= 2);
+  do { r = attackRoll(G, f, to, blitz ? 3 : (ui.dice || 3)); rounds++; } while (blitz && !r.captured && G.armies[f] >= 2);
   let text = blitz ? `${plural(rounds, 'round')} of dice. ${tname(f)} lost ${startA - G.armies[f]}, ${tname(to)} lost ${startD - (r.captured ? 0 : G.armies[to])}. ` : diceText(r) + ' ';
   if (r.captured) {
     text += `You captured ${tname(to)}!`;
@@ -1184,7 +1243,7 @@ function doAttack(blitz) {
     if (G.occupy.max === G.occupy.min) { // no choice to make
       const n = G.occupy.max; occupy(G, n); text += ` ${n} ${n === 1 ? 'army' : 'armies'} moved in.`;
       resetSel(); ui.lastResult = text;
-      say(text + (G.phase === 'reinforce' ? ` You traded cards: place ${G.reserve} armies.` : ' Choose where to attack from next.'), true);
+      say(text + (G.phase === 'reinforce' ? ` You now have ${G.players[G.cur].cards.length} cards and must trade down to 4 or fewer.` : ' Choose where to attack from next.'), true);
       commit('phase-h'); return;
     }
     say(text + ` Move between ${G.occupy.min} and ${G.occupy.max} armies in.`, true); commit('phase-h'); return;
@@ -1200,7 +1259,7 @@ function doOccupy(n) {
   const o = G.occupy; occupy(G, n); lastAnnounced = G.logId;
   resetSel(); ui.lastResult = '';
   say(`Moved ${n} into ${tname(o.to)}. ${tname(o.from)} keeps ${G.armies[o.from]}. ` +
-    (G.phase === 'reinforce' ? `You traded cards: place ${G.reserve} armies.` : 'Choose where to attack from next.'), true);
+    (G.phase === 'reinforce' ? `You now have ${G.players[G.cur].cards.length} cards and must trade down to 4 or fewer.` : 'Choose where to attack from next.'), true);
   commit('phase-h');
 }
 function doFortify(n) {
