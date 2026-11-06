@@ -1,0 +1,1092 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Forty-Two Fronts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Big+Shoulders+Display:wght@700;800&display=swap">
+<style>
+/* Layout: one readable column of plain sections in reading order; every control is a native button or select. */
+:root {
+  --bg: #f3f1ec; --surface: #ffffff; --ink: #1d2328; --muted: #5a6470; --line: #d5d0c4;
+  --accent: #8a3b12; --accent-ink: #ffffff; --focus: #1f5fd1;
+  --p-red: #c0392b; --p-blue: #2563b8; --p-green: #23804a; --p-gold: #a87a06; --p-purple: #7b3fb0; --p-slate: #55606b;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15191d; --surface: #1e2429; --ink: #ecebe6; --muted: #a3acb5; --line: #343c44;
+  --accent: #e58a55; --accent-ink: #1a0d05; --focus: #7fb0ff;
+  --p-red: #ef6a5c; --p-blue: #6aa2ee; --p-green: #4cc27e; --p-gold: #e6b832; --p-purple: #b383e6; --p-slate: #a0aab4;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15191d; --surface: #1e2429; --ink: #ecebe6; --muted: #a3acb5; --line: #343c44;
+  --accent: #e58a55; --accent-ink: #1a0d05; --focus: #7fb0ff;
+  --p-red: #ef6a5c; --p-blue: #6aa2ee; --p-green: #4cc27e; --p-gold: #e6b832; --p-purple: #b383e6; --p-slate: #a0aab4;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 1.05rem; line-height: 1.5; padding-inline: 16px; padding-block: 12px 48px; }
+main { max-width: 46rem; margin: 0 auto; display: grid; gap: 18px; }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: 2.6rem; line-height: 1; letter-spacing: .01em; margin: 8px 0 2px; text-wrap: balance; }
+h2 { font-size: 1.3rem; margin: 0 0 10px; text-wrap: balance; }
+h3 { font-size: 1.05rem; margin: 14px 0 6px; }
+p { margin: 0 0 10px; max-width: 65ch; }
+.tag { color: var(--muted); margin: 0; }
+section, details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+section.lead { border: 2px solid var(--accent); }
+summary { font-weight: 700; font-size: 1.1rem; cursor: pointer; }
+details[open] summary { margin-bottom: 8px; }
+h2:focus, h1:focus { outline: none; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.stack { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button { font: inherit; font-size: 1rem; text-align: left; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; cursor: pointer; min-height: 44px; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+button.choice { width: 100%; }
+button .sub { display: block; color: var(--muted); font-size: .92rem; }
+button.primary .sub { color: inherit; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+label { font-weight: 700; display: block; margin-bottom: 4px; }
+input, select { font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; min-height: 44px; max-width: 100%; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 12px; min-width: 0; }
+legend { font-weight: 700; padding: 0 4px; }
+.field { margin-bottom: 12px; }
+.chip { display: inline-block; width: .8em; height: .8em; border-radius: 50%; margin-right: .4em; vertical-align: baseline; background: var(--chip, var(--muted)); }
+.p-red { --chip: var(--p-red); } .p-blue { --chip: var(--p-blue); } .p-green { --chip: var(--p-green); }
+.p-gold { --chip: var(--p-gold); } .p-purple { --chip: var(--p-purple); } .p-slate { --chip: var(--p-slate); }
+.status { font-size: 1.05rem; }
+.code { font-family: var(--f-display); font-size: 2.4rem; letter-spacing: .25em; font-weight: 800; }
+.dice { font-variant-numeric: tabular-nums; }
+.note { color: var(--muted); font-size: .95rem; }
+.warn { border-left: 4px solid var(--accent); padding-left: 10px; }
+ol.log { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tablewrap { overflow-x: auto; }
+.mapwrap { overflow-x: auto; margin: 0 -4px; }
+.mapwrap svg { display: block; width: max(100%, 760px); height: auto; }
+.m-cont { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.m-cname { fill: var(--muted); font: 700 13px var(--f-body); letter-spacing: .06em; text-transform: uppercase; }
+.m-edge { stroke: var(--muted); stroke-width: 1.4; opacity: .55; }
+.m-sea { stroke-dasharray: 5 4; }
+.m-node { stroke: var(--surface); stroke-width: 2.5; }
+.m-red { fill: var(--p-red); } .m-blue { fill: var(--p-blue); } .m-green { fill: var(--p-green); }
+.m-gold { fill: var(--p-gold); } .m-purple { fill: var(--p-purple); } .m-slate { fill: var(--p-slate); }
+.m-n { fill: #fff; font: 700 13px var(--f-body); text-anchor: middle; dominant-baseline: central; paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 2px; }
+.m-lbl { fill: var(--ink); font: 11px var(--f-body); text-anchor: middle; }
+.m-ring { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-dasharray: 4 3; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main id="app">
+  <header>
+    <h1 id="title" tabindex="-1">Forty-Two Fronts</h1>
+    <p class="tag">World conquest for screen readers. 42 territories, six continents, dice and cards.</p>
+  </header>
+  <div id="view"><section><h2>Loading</h2><p>Setting up the board.</p></section></div>
+</main>
+<div id="live-polite" class="sr" aria-live="polite" aria-atomic="true"></div>
+<div id="live-assert" class="sr" aria-live="assertive" aria-atomic="true"></div>
+
+<script>
+const CONT = {
+  na: { name: 'North America', bonus: 5 },
+  sa: { name: 'South America', bonus: 2 },
+  eu: { name: 'Europe', bonus: 5 },
+  af: { name: 'Africa', bonus: 3 },
+  as: { name: 'Asia', bonus: 7 },
+  au: { name: 'Australia', bonus: 2 },
+};
+const TERR = [
+  ['alaska','Alaska','na',['nwt','alberta','kamchatka']],
+  ['nwt','Northwest Territory','na',['alaska','alberta','ontario','greenland']],
+  ['greenland','Greenland','na',['nwt','ontario','quebec','iceland']],
+  ['alberta','Alberta','na',['alaska','nwt','ontario','wus']],
+  ['ontario','Ontario','na',['nwt','alberta','greenland','quebec','wus','eus']],
+  ['quebec','Quebec','na',['ontario','greenland','eus']],
+  ['wus','Western United States','na',['alberta','ontario','eus','camerica']],
+  ['eus','Eastern United States','na',['wus','ontario','quebec','camerica']],
+  ['camerica','Central America','na',['wus','eus','venezuela']],
+  ['venezuela','Venezuela','sa',['camerica','peru','brazil']],
+  ['peru','Peru','sa',['venezuela','brazil','argentina']],
+  ['brazil','Brazil','sa',['venezuela','peru','argentina','nafrica']],
+  ['argentina','Argentina','sa',['peru','brazil']],
+  ['iceland','Iceland','eu',['greenland','gbritain','scandinavia']],
+  ['gbritain','Great Britain','eu',['iceland','scandinavia','neurope','weurope']],
+  ['scandinavia','Scandinavia','eu',['iceland','gbritain','neurope','ukraine']],
+  ['neurope','Northern Europe','eu',['gbritain','scandinavia','ukraine','seurope','weurope']],
+  ['weurope','Western Europe','eu',['gbritain','neurope','seurope','nafrica']],
+  ['seurope','Southern Europe','eu',['weurope','neurope','ukraine','mideast','egypt','nafrica']],
+  ['ukraine','Ukraine','eu',['scandinavia','neurope','seurope','mideast','afghanistan','ural']],
+  ['nafrica','North Africa','af',['brazil','weurope','seurope','egypt','eafrica','congo']],
+  ['egypt','Egypt','af',['nafrica','seurope','mideast','eafrica']],
+  ['eafrica','East Africa','af',['egypt','nafrica','congo','safrica','madagascar','mideast']],
+  ['congo','Congo','af',['nafrica','eafrica','safrica']],
+  ['safrica','South Africa','af',['congo','eafrica','madagascar']],
+  ['madagascar','Madagascar','af',['safrica','eafrica']],
+  ['ural','Ural','as',['ukraine','siberia','china','afghanistan']],
+  ['siberia','Siberia','as',['ural','yakutsk','irkutsk','mongolia','china']],
+  ['yakutsk','Yakutsk','as',['siberia','kamchatka','irkutsk']],
+  ['kamchatka','Kamchatka','as',['yakutsk','irkutsk','mongolia','japan','alaska']],
+  ['irkutsk','Irkutsk','as',['siberia','yakutsk','kamchatka','mongolia']],
+  ['mongolia','Mongolia','as',['irkutsk','kamchatka','japan','china','siberia']],
+  ['japan','Japan','as',['kamchatka','mongolia']],
+  ['afghanistan','Afghanistan','as',['ukraine','ural','china','india','mideast']],
+  ['china','China','as',['mongolia','siberia','ural','afghanistan','india','siam']],
+  ['mideast','Middle East','as',['seurope','ukraine','afghanistan','india','eafrica','egypt']],
+  ['india','India','as',['mideast','afghanistan','china','siam']],
+  ['siam','Siam','as',['india','china','indonesia']],
+  ['indonesia','Indonesia','au',['siam','nguinea','waustralia']],
+  ['nguinea','New Guinea','au',['indonesia','waustralia','eaustralia']],
+  ['waustralia','Western Australia','au',['indonesia','nguinea','eaustralia']],
+  ['eaustralia','Eastern Australia','au',['nguinea','waustralia']],
+];
+
+// ---- Game engine: pure state + rules + computer player ----
+const T = {}; const ADJ = {}; const TIDS = [];
+for (const [id, name, c, adj] of TERR) { T[id] = { id, name, c }; ADJ[id] = adj; TIDS.push(id); }
+const KINDS = ['Infantry', 'Cavalry', 'Artillery'];
+const START_ARMIES = { 2: 40, 3: 35, 4: 30, 5: 25, 6: 20 };
+const COLORS = [
+  { key: 'red', name: 'Red' }, { key: 'blue', name: 'Blue' }, { key: 'green', name: 'Green' },
+  { key: 'gold', name: 'Gold' }, { key: 'purple', name: 'Purple' }, { key: 'slate', name: 'Gray' },
+];
+
+function rnd(n) { return Math.floor(Math.random() * n); }
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rnd(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function rollDie() { return 1 + rnd(6); }
+
+function newGame(players) {
+  // players: [{name, kind:'human'|'ai', uid?}]
+  const G = {
+    v: 1, seq: 0, turn: 0, cur: 0, phase: 'reinforce', reserve: 0, conquered: false,
+    trades: 0, occupy: null, winner: null, afterCapture: false, placed: [],
+    players: players.map((p, i) => ({ name: p.name, kind: p.kind, uid: p.uid || null, color: COLORS[i].key, colorName: COLORS[i].name, cards: [], alive: true })),
+    owner: {}, armies: {}, deck: [], discard: [], log: [], logId: 0,
+  };
+  const n = players.length;
+  const order = shuffle(TIDS.slice());
+  order.forEach((t, i) => { G.owner[t] = i % n; G.armies[t] = 1; });
+  // spread remaining starting armies at random over each player's territories
+  for (let p = 0; p < n; p++) {
+    const mine = TIDS.filter(t => G.owner[t] === p);
+    let left = START_ARMIES[n] - mine.length;
+    while (left-- > 0) G.armies[mine[rnd(mine.length)]]++;
+  }
+  G.deck = shuffle(TIDS.map((t, i) => ({ t, k: KINDS[i % 3] })).concat([{ t: null, k: 'Wild' }, { t: null, k: 'Wild' }]));
+  G.cur = rnd(n);
+  addLog(G, -1, `New game with ${n} players. Territories and armies were dealt at random. First turn: {p${G.cur}}.`);
+  startTurn(G);
+  return G;
+}
+
+function addLog(G, p, s) {
+  G.log.push({ id: ++G.logId, turn: G.turn, p, s });
+  if (G.log.length > 400) G.log.splice(0, G.log.length - 400);
+}
+
+const owned = (G, p) => TIDS.filter(t => G.owner[t] === p);
+const enemiesOf = (G, t) => ADJ[t].filter(n => G.owner[n] !== G.owner[t]);
+const contHeld = (G, c, p) => TIDS.every(t => T[t].c !== c || G.owner[t] === p);
+
+function income(G, p) {
+  const n = owned(G, p).length;
+  const base = Math.max(3, Math.floor(n / 3));
+  const conts = Object.keys(CONT).filter(c => contHeld(G, c, p));
+  const bonus = conts.reduce((s, c) => s + CONT[c].bonus, 0);
+  return { base, conts, bonus, total: base + bonus, count: n };
+}
+
+function tradeValue(n) { return n < 6 ? [4, 6, 8, 10, 12, 15][n] : 15 + 5 * (n - 5); }
+
+function isSet(cards) {
+  if (cards.length !== 3) return false;
+  const wild = cards.filter(c => c.k === 'Wild').length;
+  if (wild) return true;
+  const ks = new Set(cards.map(c => c.k));
+  return ks.size === 1 || ks.size === 3;
+}
+
+// best set to trade: indexes into player's cards, preferring sets that include an owned territory
+function bestSet(G, p) {
+  const cards = G.players[p].cards; let best = null, bs = -1;
+  for (let a = 0; a < cards.length; a++) for (let b = a + 1; b < cards.length; b++) for (let c = b + 1; c < cards.length; c++) {
+    const s = [cards[a], cards[b], cards[c]];
+    if (!isSet(s)) continue;
+    let score = s.some(x => x.t && G.owner[x.t] === p) ? 2 : 0;
+    score -= s.filter(x => x.k === 'Wild').length; // save wilds
+    if (score > bs) { bs = score; best = [a, b, c]; }
+  }
+  return best;
+}
+
+function trade(G, idxs) {
+  const p = G.cur; const pl = G.players[p];
+  const cards = idxs.map(i => pl.cards[i]);
+  const value = tradeValue(G.trades); G.trades++;
+  G.reserve += value;
+  let extra = '';
+  const match = cards.find(c => c.t && G.owner[c.t] === p);
+  if (match) { G.armies[match.t] += 2; extra = ` Plus 2 armies placed on ${T[match.t].name}, a territory shown on one of the cards.`; }
+  idxs.slice().sort((a, b) => b - a).forEach(i => G.discard.push(pl.cards.splice(i, 1)[0]));
+  addLog(G, p, `{p${p}} traded in ${cards.map(c => c.k).join(', ')} for ${value} armies.${extra}`);
+  return { value, extra };
+}
+
+function startTurn(G) {
+  G.turn++;
+  const p = G.cur;
+  G.conquered = false; G.occupy = null; G.afterCapture = false; G.placed = [];
+  const inc = income(G, p);
+  G.reserve = inc.total;
+  const parts = [`${inc.base} for ${inc.count} territories`].concat(inc.conts.map(c => `${CONT[c].bonus} for holding ${CONT[c].name}`));
+  addLog(G, p, `Turn ${G.turn}, {p${p}}: ${inc.total} new armies (${parts.join(', ')}).`);
+  G.phase = 'reinforce';
+  while (G.players[p].cards.length >= 5) { const s = bestSet(G, p); if (!s) break; trade(G, s); }
+}
+
+function place(G, t, n) {
+  n = Math.min(n, G.reserve);
+  if (G.phase !== 'reinforce' || G.owner[t] !== G.cur || n < 1) return false;
+  G.armies[t] += n; G.reserve -= n; G.placed.push([t, n]);
+  if (G.reserve === 0) {
+    const sum = {}; G.placed.forEach(([x, k]) => sum[x] = (sum[x] || 0) + k);
+    addLog(G, G.cur, `{p${G.cur}} placed ${Object.entries(sum).map(([x, k]) => `${k} on ${T[x].name}`).join(', ')}.`);
+    G.placed = []; G.phase = 'attack'; G.afterCapture = false;
+  }
+  return true;
+}
+
+function undoPlace(G) {
+  const last = G.placed.pop(); if (!last) return null;
+  G.armies[last[0]] -= last[1]; G.reserve += last[1];
+  return last;
+}
+
+const canAttackFrom = (G, t) => G.owner[t] === G.cur && G.armies[t] >= 2 && enemiesOf(G, t).length > 0;
+
+// one round of dice. returns result object
+function attackRoll(G, from, to) {
+  const a = G.armies[from], d = G.armies[to];
+  const ad = Math.min(3, a - 1), dd = Math.min(2, d);
+  const A = Array.from({ length: ad }, rollDie).sort((x, y) => y - x);
+  const D = Array.from({ length: dd }, rollDie).sort((x, y) => y - x);
+  let al = 0, dl = 0;
+  for (let i = 0; i < Math.min(ad, dd); i++) { if (A[i] > D[i]) dl++; else al++; }
+  G.armies[from] -= al; G.armies[to] -= dl;
+  const res = { A, D, al, dl, captured: false, eliminated: null, ad };
+  if (G.armies[to] === 0) capture(G, from, to, ad, res);
+  return res;
+}
+
+function capture(G, from, to, ad, res) {
+  const p = G.cur, def = G.owner[to];
+  G.owner[to] = p; G.conquered = true; res.captured = true;
+  addLog(G, p, `{p${p}} captured ${T[to].name} from {p${def}}, attacking from ${T[from].name}.`);
+  if (owned(G, def).length === 0) {
+    const dp = G.players[def]; dp.alive = false; res.eliminated = def;
+    const n = dp.cards.length; G.players[p].cards.push(...dp.cards); dp.cards = [];
+    addLog(G, p, `{p${p}} eliminated {p${def}}${n ? ` and took ${n} card${n > 1 ? 's' : ''}` : ''}.`);
+    const alive = G.players.filter(x => x.alive).length;
+    if (alive === 1) { G.winner = p; G.phase = 'over'; addLog(G, p, `{p${p}} conquered the whole world. Game over.`); }
+  }
+  const max = G.armies[from] - 1, min = Math.min(ad, max);
+  G.occupy = { from, to, min, max };
+  if (G.phase !== 'over') G.phase = 'occupy';
+  if (G.phase === 'over') { G.armies[to] = max; G.armies[from] = 1; }
+}
+
+function occupy(G, n) {
+  const o = G.occupy; if (!o) return;
+  n = Math.max(o.min, Math.min(o.max, n));
+  G.armies[o.from] -= n; G.armies[o.to] += n; G.occupy = null;
+  // eliminating someone can leave 6+ cards: must trade down to 4 and place them now
+  const p = G.cur; let got = 0;
+  while (G.players[p].cards.length >= 6) { const s = bestSet(G, p); if (!s) break; got += trade(G, s).value; }
+  if (G.reserve > 0) { G.phase = 'reinforce'; G.afterCapture = true; G.placed = []; }
+  else G.phase = 'attack';
+  return got;
+}
+
+function endAttack(G) { if (G.phase === 'attack') G.phase = 'fortify'; }
+
+function reachable(G, from) {
+  const p = G.owner[from], seen = new Set([from]), q = [from];
+  while (q.length) { const x = q.shift(); for (const n of ADJ[x]) if (!seen.has(n) && G.owner[n] === p) { seen.add(n); q.push(n); } }
+  seen.delete(from); return [...seen];
+}
+
+function fortify(G, from, to, n) {
+  if (G.phase !== 'fortify' || G.owner[from] !== G.cur || !reachable(G, from).includes(to)) return false;
+  n = Math.max(1, Math.min(G.armies[from] - 1, n));
+  G.armies[from] -= n; G.armies[to] += n;
+  addLog(G, G.cur, `{p${G.cur}} moved ${n} armies from ${T[from].name} to ${T[to].name}.`);
+  endTurn(G); return true;
+}
+
+function drawCard(G) {
+  if (!G.deck.length) { G.deck = shuffle(G.discard); G.discard = []; }
+  return G.deck.pop() || null;
+}
+
+function endTurn(G) {
+  if (G.phase === 'over') return;
+  const p = G.cur;
+  if (G.conquered) {
+    const c = drawCard(G);
+    if (c) { G.players[p].cards.push(c); addLog(G, p, `{p${p}} earned a card for capturing a territory this turn.`); }
+  }
+  let n = G.cur;
+  do { n = (n + 1) % G.players.length; } while (!G.players[n].alive);
+  G.cur = n;
+  startTurn(G);
+}
+
+// ---- Computer player ----
+function aiTurn(G) {
+  const p = G.cur, me = G.players[p];
+  if (me.kind !== 'ai' || G.phase === 'over') return;
+  let s; while ((s = bestSet(G, p))) trade(G, s);
+
+  const focusCont = () => {
+    let best = null, bf = -1;
+    for (const c of Object.keys(CONT)) {
+      const ts = TIDS.filter(t => T[t].c === c); const mine = ts.filter(t => G.owner[t] === p).length;
+      if (mine === ts.length) continue;
+      const f = mine / ts.length + CONT[c].bonus / 40 - ts.length / 200;
+      if (f > bf) { bf = f; best = c; }
+    }
+    return best;
+  };
+  const placeAll = () => {
+    const fc = focusCont();
+    let best = null, bs = -1e9;
+    for (const t of owned(G, p)) {
+      const en = enemiesOf(G, t); if (!en.length) continue;
+      const weakest = Math.min(...en.map(e => G.armies[e]));
+      let sc = G.armies[t] - weakest + (en.some(e => T[e].c === fc) ? 8 : 0) + (T[t].c === fc ? 3 : 0);
+      if (sc > bs) { bs = sc; best = t; }
+    }
+    if (!best) best = owned(G, p)[0];
+    while (G.reserve > 0) place(G, best, G.reserve);
+  };
+  placeAll();
+
+  for (let guard = 0; guard < 80 && G.phase === 'attack'; guard++) {
+    const fc = focusCont(); let best = null, bs = 0;
+    for (const f of owned(G, p)) {
+      if (G.armies[f] < 3) continue;
+      for (const e of enemiesOf(G, f)) {
+        const diff = G.armies[f] - G.armies[e];
+        if (diff < 2) continue;
+        const defCount = owned(G, G.owner[e]).length;
+        const sc = diff + (T[e].c === fc ? 4 : 0) + (defCount <= 2 ? 6 : 0) + (G.conquered ? 0 : 3);
+        if (sc > bs) { bs = sc; best = [f, e]; }
+      }
+    }
+    if (!best) break;
+    const [f, e] = best; const def = G.owner[e]; const startA = G.armies[f], startD = G.armies[e];
+    let r;
+    while (G.armies[f] >= 2 && G.owner[e] === def) {
+      r = attackRoll(G, f, e);
+      if (r.captured) break;
+      if (G.armies[f] <= G.armies[e]) break;
+    }
+    if (G.phase === 'over') return;
+    if (G.phase === 'occupy') {
+      const o = G.occupy;
+      const stillFront = enemiesOf(G, f).length > 0;
+      occupy(G, stillFront ? Math.max(o.min, Math.ceil(o.max / 2)) : o.max);
+      if (G.phase === 'reinforce') placeAll();
+    } else {
+      addLog(G, p, `Attack on ${T[e].name} ({p${def}}) from ${T[f].name} by {p${p}} was held off. ${T[f].name} went from ${startA} to ${G.armies[f]} armies, ${T[e].name} from ${startD} to ${G.armies[e]}.`);
+    }
+  }
+  endAttack(G);
+  // fortify: move the biggest interior stack toward the most threatened border
+  let src = null, sa = 1;
+  for (const t of owned(G, p)) if (!enemiesOf(G, t).length && G.armies[t] > sa) { sa = G.armies[t]; src = t; }
+  if (src) {
+    let dst = null, threat = -1e9;
+    for (const t of reachable(G, src)) {
+      const en = enemiesOf(G, t); if (!en.length) continue;
+      const th = en.reduce((s2, e) => s2 + G.armies[e], 0) - G.armies[t];
+      if (th > threat) { threat = th; dst = t; }
+    }
+    if (dst) { fortify(G, src, dst, G.armies[src] - 1); return; }
+  }
+  endTurn(G);
+}
+
+
+
+// ================= Interface =================
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const SAVE_KEY = 'fronts-local-v1', ONLINE_KEY = 'fronts-online-v1';
+function store(k, v) { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function load(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+
+let G = null;              // game state (synced online)
+let ui = { screen: 'setup', mode: 'ai', from: null, to: null, ffrom: null, fto: null, step: 1, handoff: false, confirmNew: false, lastResult: '', setupPlayers: null, onlineMsg: '' };
+ui.showMap = !!load('fronts-map');
+let net = { db: null, user: null, uid: null, ref: null, unsub: null, code: null, seat: null, checked: false, writing: false, again: false };
+let lastAnnounced = 0;     // highest log id already spoken
+
+// ---------- speaking ----------
+let speakTimer = {};
+function say(text, urgent) {
+  const el = $(urgent ? 'live-assert' : 'live-polite');
+  clearTimeout(speakTimer[el.id]); el.textContent = '';
+  speakTimer[el.id] = setTimeout(() => { el.textContent = text; }, 60);
+}
+
+// ---------- names ----------
+function viewer() {
+  if (!G) return -1;
+  if (G.online) return net.seat ?? -1;
+  if (G.players[G.cur].kind === 'human') return G.cur;
+  const humans = G.players.map((p, i) => p.kind === 'human' ? i : -1).filter(i => i >= 0);
+  return humans.length === 1 ? humans[0] : -1;
+}
+function pname(i) { return i === viewer() ? 'you' : G.players[i].name; }
+function fmt(s) {
+  return s.replace(/\{p(\d+)\}/g, (m, i) => pname(+i)).replace(/(^|[.:!]\s+)you\b/g, (m, a) => a + 'You');
+}
+const who = i => `${esc(G.players[i].name)} (${G.players[i].colorName})`;
+const chip = i => `<span class="chip p-${G.players[i].color}" aria-hidden="true"></span>`;
+const tname = t => T[t].name;
+const ownerLabel = t => G.owner[t] === viewer() ? 'yours' : G.players[G.owner[t]].name;
+
+// ---------- persistence / sync ----------
+function commit(focusId) {
+  if (G.online) pushOnline(); else store(SAVE_KEY, G);
+  render(focusId);
+}
+async function pushOnline() {
+  G.seq++;
+  if (net.writing) { net.again = true; return; }
+  net.writing = true;
+  do {
+    net.again = false;
+    try { await net.ref.set({ g: JSON.parse(JSON.stringify(G)), at: Date.now() }); }
+    catch (e) { say('Could not save your move online. Check your connection; the move will be sent with your next action.', true); }
+  } while (net.again);
+  net.writing = false;
+}
+function announceNew() {
+  if (!G) return;
+  const me = viewer();
+  const fresh = G.log.filter(e => e.id > lastAnnounced && (e.p !== me || e.p === -1));
+  lastAnnounced = G.logId;
+  if (!fresh.length) return;
+  const text = fresh.slice(-10).map(e => fmt(e.s)).join(' ');
+  say(text + (isMyTurn() && G.phase !== 'over' ? ' It is your turn.' : ''));
+}
+
+function isMyTurn() {
+  if (!G || G.phase === 'over') return false;
+  if (G.online) return G.started && G.cur === net.seat;
+  return G.players[G.cur].kind === 'human';
+}
+
+// ---------- computer turns ----------
+let aiTimer = null;
+function maybeRunAI() {
+  clearTimeout(aiTimer);
+  if (!G || G.phase === 'over') return;
+  if (G.online && (!G.started || net.seat !== 0)) return; // the host's device plays the computers
+  if (G.players[G.cur].kind !== 'ai') return;
+  aiTimer = setTimeout(() => {
+    if (!G || G.players[G.cur].kind !== 'ai') return;
+    aiTurn(G);
+    resetSel();
+    if (G.online) pushOnline(); else store(SAVE_KEY, G);
+    if (G.players[G.cur].kind === 'ai' && G.phase !== 'over') { render(); maybeRunAI(); return; }
+    beginTurnView();
+  }, 700);
+}
+function resetSel() { ui.from = ui.to = ui.ffrom = ui.fto = null; }
+
+function beginTurnView() {
+  // called whenever control may have passed to a new person
+  resetSel();
+  const humans = G.players.filter(p => p.kind === 'human' && p.alive).length;
+  if (!G.online && humans > 1 && G.players[G.cur].kind === 'human' && G.phase === 'reinforce' && ui.handoffFor !== G.turn) {
+    ui.handoff = true; ui.handoffFor = G.turn;
+    render('phase-h'); say(`Pass the device to ${G.players[G.cur].name}.`, true); return;
+  }
+  render('phase-h');
+  announceNew();
+}
+
+// ================= Rendering =================
+function render(focusId) {
+  const active = document.activeElement && document.activeElement.id;
+  $('view').innerHTML = ui.screen === 'setup' ? setupView() : ui.screen === 'lobby' ? lobbyView() : gameView();
+  const target = (focusId && $(focusId)) || (active && $(active));
+  if (target) target.focus();
+  window.claude?.hot?.snapshot?.(() => ({ G, ui: { ...ui }, code: net.code, seat: net.seat }));
+}
+
+// ---------- setup ----------
+function defaultPlayers(mode) {
+  if (mode === 'ai') return [{ name: 'You', kind: 'human' }, { name: 'Computer 1', kind: 'ai' }, { name: 'Computer 2', kind: 'ai' }];
+  return [{ name: 'Player 1', kind: 'human' }, { name: 'Player 2', kind: 'human' }];
+}
+function setupView() {
+  const saved = load(SAVE_KEY); const lastOnline = load(ONLINE_KEY);
+  if (!ui.setupPlayers) ui.setupPlayers = defaultPlayers('ai');
+  const sp = ui.setupPlayers;
+  let h = '';
+  if (saved && saved.phase !== 'over') {
+    h += `<section><h2>Saved game</h2><p>Turn ${saved.turn}, ${saved.players.length} players, on this device.</p>
+      <button class="primary" id="resume" data-act="resume">Resume saved game</button></section>`;
+  }
+  h += `<section aria-labelledby="new-h"><h2 id="new-h" tabindex="-1">New game</h2>
+    <fieldset><legend>How do you want to play?</legend>
+      <div class="stack">
+        ${[['ai', 'Against the computer'], ['local', 'Pass and play on this device'], ['online', 'Online with a friend']].map(([v, l]) =>
+          `<label style="font-weight:400"><input type="radio" name="mode" id="mode-${v}" value="${v}" data-act="mode" ${ui.mode === v ? 'checked' : ''}> ${l}</label>`).join('')}
+      </div></fieldset>`;
+  if (ui.mode === 'online') {
+    h += onlineSetup(lastOnline);
+  } else {
+    h += `<h3 id="players-h">Players (${sp.length} of 6)</h3><ol class="stack">`;
+    sp.forEach((p, i) => {
+      h += `<li><fieldset><legend>Player ${i + 1}, ${COLORS[i].name}</legend>
+        <div class="row">
+          <div><label for="pn-${i}">Name</label><input id="pn-${i}" data-act="pname" data-i="${i}" value="${esc(p.name)}" maxlength="20" autocomplete="off"></div>
+          <div><label for="pk-${i}">Played by</label><select id="pk-${i}" data-act="pkind" data-i="${i}">
+            <option value="human" ${p.kind === 'human' ? 'selected' : ''}>A person</option>
+            <option value="ai" ${p.kind === 'ai' ? 'selected' : ''}>The computer</option></select></div>
+        </div></fieldset></li>`;
+    });
+    h += `</ol><div class="row">
+      ${sp.length < 6 ? `<button id="add-p" data-act="addp">Add a player</button>` : ''}
+      ${sp.length > 2 ? `<button id="rm-p" data-act="rmp">Remove the last player</button>` : ''}
+      <button class="primary" id="start" data-act="start">Start game</button></div>
+      <p class="note">Territories and starting armies are dealt at random so you can start playing right away.</p>`;
+  }
+  h += `</section>` + rulesBlock();
+  return h;
+}
+function onlineSetup(lastOnline) {
+  if (!net.checked) return `<p id="online-wait">Checking whether online play is available here…</p>`;
+  if (!net.db || !net.uid) return `<p class="warn">Online play isn't available in this view. It needs the game opened from its Claude link while signed in to Claude. You can still play against the computer or pass and play.</p>`;
+  let h = '';
+  if (lastOnline) h += `<p><button class="primary" id="rejoin" data-act="rejoin">Return to game ${esc(lastOnline.code.split('').join(' '))}</button></p>`;
+  h += `<div class="field"><label for="my-name">Your name</label><input id="my-name" value="${esc(ui.myName || '')}" data-act="myname" maxlength="20" autocomplete="off"></div>
+    <h3>Start a new online game</h3>
+    <div class="field"><label for="ai-count">Computer players to add</label><select id="ai-count" data-act="aicount">
+      ${[0, 1, 2, 3, 4].map(n => `<option value="${n}" ${(ui.aiCount || 0) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+    <p><button class="primary" id="create" data-act="create">Create game and get a code</button></p>
+    <h3>Join a friend's game</h3>
+    <div class="field"><label for="join-code">Game code</label><input id="join-code" value="${esc(ui.joinCode || '')}" data-act="joincode" maxlength="6" autocomplete="off" autocapitalize="characters"></div>
+    <p><button id="join" data-act="join">Join game</button></p>
+    ${ui.onlineMsg ? `<p class="warn" role="alert">${esc(ui.onlineMsg)}</p>` : ''}`;
+  return h;
+}
+
+function lobbyView() {
+  const spelled = net.code.split('').join(' ');
+  const waiting = G.players.filter(p => p.kind === 'human' && !p.uid);
+  return `<section class="lead"><h2 id="phase-h" tabindex="-1">Waiting for your friend to join</h2>
+    <p>Game code:</p><p class="code" aria-label="${spelled}">${net.code}</p>
+    <p>Send your friend the link to this game and this code. They choose “Online with a friend”, type their name, enter the code, and choose Join game. The game starts as soon as they join, and this page will tell you.</p>
+    <div class="row"><button id="copy" data-act="copy">Copy the code</button><button id="leave" data-act="leave">Cancel and go back</button></div>
+    <p class="note">${waiting.length} seat${waiting.length === 1 ? '' : 's'} still open.</p></section>`;
+}
+
+// ---------- in-game ----------
+function gameView() {
+  const me = viewer();
+  const cp = G.players[G.cur];
+  let h = `<section aria-labelledby="status-h"><h2 id="status-h" class="sr">Status</h2>
+    <p class="status">${G.phase === 'over' ? 'Game over.' : `Turn ${G.turn}. ${chip(G.cur)}${G.cur === me ? '<strong>Your turn</strong>' : `${who(G.cur)}'s turn`}, ${phaseName()}.`}
+    ${me >= 0 ? ` You hold ${owned(G, me).length} territor${owned(G, me).length === 1 ? 'y' : 'ies'} and ${G.players[me].cards.length} card${G.players[me].cards.length === 1 ? '' : 's'}.` : ''}</p></section>`;
+  h += `<p><button id="map-toggle" aria-pressed="${ui.showMap}" data-act="maptoggle">${ui.showMap ? 'Hide' : 'Show'} the board diagram (for sighted players)</button></p>`;
+  if (ui.showMap) h += mapView();
+  h += `<section class="lead" aria-labelledby="phase-h">${phaseView()}</section>`;
+  h += recentView();
+  if (me >= 0) h += myEmpireView(me);
+  h += boardView() + playersView() + logView() + rulesBlock();
+  h += `<section><h2>Game options</h2>${ui.confirmNew
+    ? `<p>Leave this game and start over? ${G.online ? 'Your friend can keep the code but the game will stop for you.' : 'The current game will be lost.'}</p>
+       <div class="row"><button id="new-yes" class="primary" data-act="newyes">Yes, leave this game</button><button id="new-no" data-act="newno">No, keep playing</button></div>`
+    : `<button id="new-game" data-act="newgame">Start a new game</button>`}
+    ${G.online ? `<p class="note">Online game code: ${esc(net.code.split('').join(' '))}.</p>` : ''}</section>`;
+  return h;
+}
+function phaseName() {
+  return { reinforce: 'placing armies', attack: 'attacking', occupy: 'moving into a captured territory', fortify: 'fortifying', over: 'game over' }[G.phase];
+}
+
+function terrBtn(id, act, t, extra, sub) {
+  return `<li><button class="choice" id="${id}" data-act="${act}" data-t="${t}">${extra}${sub ? `<span class="sub">${sub}</span>` : ''}</button></li>`;
+}
+function enemyList(t) {
+  const en = enemiesOf(G, t);
+  if (!en.length) return 'No enemy neighbors.';
+  return 'Enemy neighbors: ' + en.map(e => `${tname(e)} (${esc(ownerLabel(e))}, ${G.armies[e]})`).join('; ') + '.';
+}
+
+function phaseView() {
+  const me = viewer();
+  if (G.online && !G.started) return `<h2 id="phase-h" tabindex="-1">Waiting for players to join</h2>`;
+  if (G.phase === 'over') {
+    return `<h2 id="phase-h" tabindex="-1">${G.winner === me ? 'You win! The whole world is yours.' : `${esc(G.players[G.winner].name)} wins the game.`}</h2>
+      <p>Game finished on turn ${G.turn}.</p><button class="primary" id="again" data-act="newyes">Start a new game</button>`;
+  }
+  if (!isMyTurn()) {
+    const cp = G.players[G.cur];
+    return `<h2 id="phase-h" tabindex="-1">Waiting for ${esc(cp.name)}</h2>
+      <p>${cp.kind === 'ai' ? 'The computer is taking its turn.' : `${esc(cp.name)} is ${phaseName()}.`} New events will be read out as they happen and listed under Recent events.</p>`;
+  }
+  if (ui.handoff) {
+    return `<h2 id="phase-h" tabindex="-1">Pass the device to ${esc(G.players[G.cur].name)}</h2>
+      <button class="primary" id="takeover" data-act="takeover">I'm ${esc(G.players[G.cur].name)}, start my turn</button>`;
+  }
+  const p = G.cur, pl = G.players[p];
+  if (G.phase === 'reinforce') {
+    const inc = income(G, p);
+    const set = bestSet(G, p);
+    const borders = owned(G, p).filter(t => enemiesOf(G, t).length).sort((a, b) => G.armies[b] - G.armies[a]);
+    const inner = owned(G, p).filter(t => !enemiesOf(G, t).length);
+    const step = Math.min(ui.step === 'all' ? G.reserve : ui.step, G.reserve);
+    let h = `<h2 id="phase-h" tabindex="-1">Place your armies: ${G.reserve} left</h2>`;
+    h += G.afterCapture ? `<p>You traded cards after eliminating a player. Place these armies, then you'll go back to attacking.</p>`
+      : `<p>This turn you get ${inc.total}: ${inc.base} for ${inc.count} territories${inc.conts.map(c => `, ${CONT[c].bonus} for ${CONT[c].name}`).join('')}${G.reserve > inc.total ? ', plus cards traded in' : ''}.</p>`;
+    if (set && !G.afterCapture) {
+      const cs = set.map(i => pl.cards[i].k).join(', ');
+      h += `<p><button class="primary" id="trade" data-act="trade">Trade in ${cs} for ${tradeValue(G.trades)} more armies</button></p>`;
+    }
+    h += `<div class="field"><label for="step">Armies to place with each choice</label><select id="step" data-act="step">
+      ${[1, 3, 5, 'all'].map(v => `<option value="${v}" ${ui.step === v ? 'selected' : ''}>${v === 'all' ? 'All remaining' : v}</option>`).join('')}</select></div>`;
+    h += `<h3>Your border territories</h3><ul class="stack">` + borders.map(t => terrBtn('pl-' + t, 'place', t,
+      `Place ${step} on ${tname(t)}, now ${G.armies[t]}`, enemyList(t))).join('') + `</ul>`;
+    if (inner.length) h += `<details><summary>Interior territories (${inner.length}, no enemy neighbors)</summary><ul class="stack">` +
+      inner.map(t => terrBtn('pl-' + t, 'place', t, `Place ${step} on ${tname(t)}, now ${G.armies[t]}`)).join('') + `</ul></details>`;
+    if (G.placed.length) h += `<p style="margin-top:12px"><button id="undo" data-act="undo">Undo: take back ${G.placed[G.placed.length - 1][1]} from ${tname(G.placed[G.placed.length - 1][0])}</button></p>`;
+    return h;
+  }
+  if (G.phase === 'attack') {
+    let h = ui.lastResult ? `<p id="result" class="dice" role="status">${ui.lastResult}</p>` : '';
+    if (!ui.from) {
+      const srcs = owned(G, p).filter(t => canAttackFrom(G, t)).sort((a, b) => G.armies[b] - G.armies[a]);
+      h = `<h2 id="phase-h" tabindex="-1">Attack: choose where to attack from</h2>` + h;
+      h += srcs.length ? `<p>You need at least 2 armies in a territory to attack from it.</p><ul class="stack">` +
+        srcs.map(t => terrBtn('af-' + t, 'from', t, `${tname(t)}, ${G.armies[t]} armies`, enemyList(t))).join('') + `</ul>`
+        : `<p>None of your territories can attack right now.</p>`;
+      h += `<p style="margin-top:12px"><button class="primary" id="end-attack" data-act="endattack">Done attacking, go to fortify</button></p>`;
+      return h;
+    }
+    if (!ui.to) {
+      const tg = enemiesOf(G, ui.from).sort((a, b) => G.armies[a] - G.armies[b]);
+      h = `<h2 id="phase-h" tabindex="-1">Attack from ${tname(ui.from)} (${G.armies[ui.from]} armies): choose a target</h2>` + h;
+      h += `<ul class="stack">` + tg.map(t => terrBtn('at-' + t, 'to', t, `${tname(t)}, ${esc(ownerLabel(t))}, ${G.armies[t]} armies`)).join('') + `</ul>
+        <div class="row" style="margin-top:12px"><button id="back-from" data-act="backfrom">Choose a different territory to attack from</button>
+        <button id="end-attack" data-act="endattack">Done attacking, go to fortify</button></div>`;
+      return h;
+    }
+    const a = G.armies[ui.from], d = G.armies[ui.to];
+    h = `<h2 id="phase-h" tabindex="-1">${tname(ui.from)} (${a}) attacking ${tname(ui.to)} (${esc(ownerLabel(ui.to))}, ${d})</h2>` + h;
+    h += `<ul class="stack">
+      <li><button class="primary choice" id="roll" data-act="roll">Roll once<span class="sub">You roll ${Math.min(3, a - 1)}, they roll ${Math.min(2, d)}</span></button></li>
+      <li><button class="choice" id="blitz" data-act="blitz">Keep attacking until you capture it or run out<span class="sub">Stops when ${tname(ui.from)} is down to 1 army</span></button></li>
+      <li><button class="choice" id="back-to" data-act="backto">Choose a different target</button></li>
+      <li><button class="choice" id="end-attack" data-act="endattack">Done attacking, go to fortify</button></li></ul>`;
+    return h;
+  }
+  if (G.phase === 'occupy') {
+    const o = G.occupy;
+    let h = `<h2 id="phase-h" tabindex="-1">You captured ${tname(o.to)}. Move armies in from ${tname(o.from)}</h2>`;
+    h += ui.lastResult ? `<p class="dice">${ui.lastResult}</p>` : '';
+    h += `<p>Move between ${o.min} and ${o.max}. ${tname(o.from)} keeps the rest. ${enemyList(o.from).replace('Enemy neighbors', tname(o.from) + "'s enemy neighbors")}</p><ul class="stack">
+      <li><button class="primary choice" id="occ-max" data-act="occ" data-n="${o.max}">Move all ${o.max}<span class="sub">Leaves 1 in ${tname(o.from)}</span></button></li>`;
+    if (o.max > o.min) h += `<li><button class="choice" id="occ-min" data-act="occ" data-n="${o.min}">Move only ${o.min}<span class="sub">Leaves ${G.armies[o.from] - o.min} in ${tname(o.from)}</span></button></li>`;
+    h += `</ul>`;
+    if (o.max - o.min > 1) h += `<div class="row" style="margin-top:12px"><div><label for="occ-n">Or choose a number</label><select id="occ-n">
+      ${Array.from({ length: o.max - o.min + 1 }, (_, i) => o.min + i).map(n => `<option ${n === o.max ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <button id="occ-go" data-act="occsel" style="align-self:end">Move that many</button></div>`;
+    return h;
+  }
+  if (G.phase === 'fortify') {
+    let h = '';
+    if (!ui.ffrom) {
+      const srcs = owned(G, p).filter(t => G.armies[t] >= 2 && reachable(G, t).length).sort((a, b) => G.armies[b] - G.armies[a]);
+      h = `<h2 id="phase-h" tabindex="-1">Fortify: make one move, then your turn ends</h2>
+        <p>Move armies from one territory to another of yours that is connected through your own territories.</p>`;
+      h += `<p><button class="primary" id="end-turn" data-act="endturn">End turn without moving</button></p>`;
+      h += srcs.length ? `<h3>Move from</h3><ul class="stack">` + srcs.map(t => terrBtn('ff-' + t, 'ffrom', t, `${tname(t)}, ${G.armies[t]} armies`, enemyList(t))).join('') + `</ul>` : `<p>No territory has spare armies to move.</p>`;
+      return h;
+    }
+    if (!ui.fto) {
+      const tg = reachable(G, ui.ffrom).sort((a, b) => enemiesOf(G, b).length - enemiesOf(G, a).length);
+      h = `<h2 id="phase-h" tabindex="-1">Move from ${tname(ui.ffrom)} (${G.armies[ui.ffrom]} armies) to where?</h2><ul class="stack">` +
+        tg.map(t => terrBtn('ft-' + t, 'fto', t, `${tname(t)}, ${G.armies[t]} armies`, enemyList(t))).join('') + `</ul>
+        <div class="row" style="margin-top:12px"><button id="back-ff" data-act="backff">Choose a different starting territory</button>
+        <button id="end-turn" data-act="endturn">End turn without moving</button></div>`;
+      return h;
+    }
+    const max = G.armies[ui.ffrom] - 1;
+    h = `<h2 id="phase-h" tabindex="-1">Move how many from ${tname(ui.ffrom)} to ${tname(ui.fto)}?</h2>
+      <ul class="stack"><li><button class="primary choice" id="fort-max" data-act="fort" data-n="${max}">Move ${max}<span class="sub">All but 1, then end your turn</span></button></li></ul>`;
+    if (max > 1) h += `<div class="row" style="margin-top:12px"><div><label for="fort-n">Or choose a number</label><select id="fort-n">
+      ${Array.from({ length: max }, (_, i) => i + 1).map(n => `<option ${n === max ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <button id="fort-go" data-act="fortsel" style="align-self:end">Move that many and end turn</button></div>`;
+    h += `<p style="margin-top:12px"><button id="back-ft" data-act="backft">Choose a different destination</button></p>`;
+    return h;
+  }
+  return '';
+}
+
+function recentView() {
+  const items = G.log.slice(-12);
+  return `<section aria-labelledby="recent-h"><h2 id="recent-h" tabindex="-1">Recent events</h2>
+    <ol class="log">${items.map(e => `<li>${esc(fmt(e.s))}</li>`).join('')}</ol></section>`;
+}
+
+function myEmpireView(me) {
+  const pl = G.players[me]; const inc = income(G, me);
+  const held = Object.keys(CONT).map(c => {
+    const ts = TIDS.filter(t => T[t].c === c); const n = ts.filter(t => G.owner[t] === me).length;
+    return `${CONT[c].name} ${n} of ${ts.length}${n === ts.length ? ' (held, +' + CONT[c].bonus + ')' : ''}`;
+  });
+  const cards = pl.cards.length ? pl.cards.map(c => c.k + (c.t ? ` (${tname(c.t)})` : '')).join(', ') : 'none';
+  return `<details><summary>Your empire</summary>
+    <p>${pl.alive ? `${inc.count} territories with ${owned(G, me).reduce((s, t) => s + G.armies[t], 0)} armies. Next turn you'd receive ${inc.total}.` : 'You have been eliminated.'}</p>
+    <p>Continents: ${held.join('; ')}.</p>
+    <p>Cards: ${esc(cards)}. ${bestSet(G, me) ? `You have a set worth ${tradeValue(G.trades)} armies.` : 'No tradable set yet.'} Next set trades for ${tradeValue(G.trades)}.</p></details>`;
+}
+
+function boardView() {
+  let h = `<details><summary>The board, by continent</summary><p class="note">Each territory with its owner, armies, and neighbors.</p>`;
+  for (const c of Object.keys(CONT)) {
+    const ts = TIDS.filter(t => T[t].c === c);
+    const holder = G.players.findIndex((_, i) => ts.every(t => G.owner[t] === i));
+    h += `<h3>${CONT[c].name}: bonus ${CONT[c].bonus}, ${ts.length} territories${holder >= 0 ? `, held by ${esc(pname(holder))}` : ''}</h3><ul class="stack">` +
+      ts.map(t => `<li><strong>${tname(t)}</strong>: ${chip(G.owner[t])}${esc(ownerLabel(t))}, ${G.armies[t]} armies. Next to ${ADJ[t].map(n => tname(n) + (T[n].c !== c ? ` in ${CONT[T[n].c].name}` : '')).join(', ')}.</li>`).join('') + `</ul>`;
+  }
+  return h + `</details>`;
+}
+
+function playersView() {
+  return `<details><summary>Players</summary><div class="tablewrap"><table><thead><tr><th scope="col">Player</th><th scope="col">Territories</th><th scope="col">Armies</th><th scope="col">Cards</th></tr></thead><tbody>` +
+    G.players.map((p, i) => `<tr><th scope="row">${chip(i)}${esc(p.name)}${i === viewer() ? ' (you)' : ''}${p.kind === 'ai' ? ', computer' : ''}${p.alive ? '' : ', eliminated'}</th>
+      <td>${owned(G, i).length}</td><td>${owned(G, i).reduce((s, t) => s + G.armies[t], 0)}</td><td>${p.cards.length}</td></tr>`).join('') +
+    `</tbody></table></div></details>`;
+}
+
+function logView() {
+  return `<details><summary>Full game log</summary><ol class="log">${G.log.map(e => `<li>${esc(fmt(e.s))}</li>`).join('')}</ol></details>`;
+}
+
+function rulesBlock() {
+  return `<details><summary>How to play</summary>
+    <p>The goal is to hold all 42 territories. Each turn has three steps.</p>
+    <p><strong>1. Place armies.</strong> You get one army for every three territories you hold, at least three. Holding a whole continent adds its bonus: Asia 7, North America 5, Europe 5, Africa 3, South America 2, Australia 2.</p>
+    <p><strong>2. Attack</strong> as often as you like from any territory with at least 2 armies into an enemy neighbor. You roll up to 3 dice, always leaving one army behind; the defender rolls up to 2. The highest dice are compared in pairs, then the second highest. The higher die wins each pair and ties go to the defender. Each loss removes one army. When a territory is emptied you capture it and move armies in, at least as many as the dice you rolled.</p>
+    <p><strong>3. Fortify.</strong> Make one move of armies between two of your territories connected through your own land. Then your turn ends.</p>
+    <p><strong>Cards.</strong> Capture at least one territory in a turn to earn a card. Three of a kind, one of each kind, or any set with a wild card trades for armies: 4, then 6, 8, 10, 12, 15, and 5 more each time after that. If a traded card shows a territory you hold, 2 extra armies go there. With 5 or more cards you must trade at the start of your turn. Eliminate a player and you take their cards.</p>
+  </details>`;
+}
+
+
+// ---------- board diagram (schematic, for sighted players) ----------
+const MPOS = {
+  alaska:[60,70], nwt:[150,70], greenland:[290,55], alberta:[105,145], ontario:[190,145], quebec:[275,145],
+  wus:[115,225], eus:[225,225], camerica:[160,290],
+  venezuela:[185,375], peru:[160,460], brazil:[275,450], argentina:[205,555],
+  iceland:[405,70], scandinavia:[505,70], gbritain:[400,150], neurope:[485,150], ukraine:[570,120], weurope:[410,230], seurope:[505,230],
+  nafrica:[430,345], egypt:[535,335], congo:[465,440], eafrica:[570,430], safrica:[480,540], madagascar:[585,550],
+  ural:[690,70], siberia:[775,55], yakutsk:[865,50], kamchatka:[945,70], irkutsk:[850,125], mongolia:[865,195], japan:[950,210],
+  afghanistan:[695,175], china:[790,245], mideast:[680,300], india:[770,330], siam:[870,340],
+  indonesia:[805,480], nguinea:[920,480], waustralia:[820,560], eaustralia:[930,565],
+};
+const MBOX = { na:[20,20,330,315], sa:[110,335,330,605], eu:[355,20,615,265], af:[375,295,625,605], as:[640,20,985,375], au:[755,420,985,610] };
+const MSHORT = { nwt:'Northwest Terr.', wus:'Western US', eus:'Eastern US', camerica:'Central America', gbritain:'Great Britain', neurope:'N. Europe', weurope:'W. Europe', seurope:'S. Europe', nafrica:'N. Africa', eafrica:'E. Africa', safrica:'S. Africa', waustralia:'W. Australia', eaustralia:'E. Australia', nguinea:'New Guinea' };
+function mapView() {
+  let svg = `<svg viewBox="0 0 1000 620" role="img" aria-label="Board diagram showing territory owners, armies and connections. The same information is in the board list below.">`;
+  for (const [c, [x1, y1, x2, y2]] of Object.entries(MBOX)) {
+    svg += `<rect class="m-cont" x="${x1}" y="${y1}" width="${x2 - x1}" height="${y2 - y1}" rx="14"/>`;
+    svg += `<text class="m-cname" x="${x1 + 12}" y="${y1 + 18}">${CONT[c].name} +${CONT[c].bonus}</text>`;
+  }
+  const seen = new Set();
+  for (const t of TIDS) for (const n of ADJ[t]) {
+    const k = [t, n].sort().join('|'); if (seen.has(k)) continue; seen.add(k);
+    const sea = T[t].c !== T[n].c ? ' m-sea' : '';
+    if (k === 'alaska|kamchatka') {
+      svg += `<line class="m-edge m-sea" x1="${MPOS.alaska[0]}" y1="${MPOS.alaska[1]}" x2="4" y2="${MPOS.alaska[1]}"/><line class="m-edge m-sea" x1="${MPOS.kamchatka[0]}" y1="${MPOS.kamchatka[1]}" x2="996" y2="${MPOS.kamchatka[1]}"/>`;
+      continue;
+    }
+    svg += `<line class="m-edge${sea}" x1="${MPOS[t][0]}" y1="${MPOS[t][1]}" x2="${MPOS[n][0]}" y2="${MPOS[n][1]}"/>`;
+  }
+  const mark = new Set([ui.from, ui.to, ui.ffrom, ui.fto, G.occupy && G.occupy.from, G.occupy && G.occupy.to].filter(Boolean));
+  for (const t of TIDS) {
+    const [x, y] = MPOS[t], o = G.owner[t];
+    if (mark.has(t)) svg += `<circle class="m-ring" cx="${x}" cy="${y}" r="24"/>`;
+    svg += `<circle class="m-node m-${G.players[o].color}" cx="${x}" cy="${y}" r="18"/><text class="m-n" x="${x}" y="${y}">${G.armies[t]}</text>`;
+    svg += `<text class="m-lbl" x="${x}" y="${y + 31}">${MSHORT[t] || T[t].name}</text>`;
+  }
+  svg += `</svg>`;
+  const legend = G.players.map((p, i) => `<li>${chip(i)}${esc(p.name)}${p.alive ? '' : ' (out)'}</li>`).join('');
+  return `<section aria-label="Board diagram"><div class="mapwrap">${svg}</div>
+    <ul class="legend" aria-hidden="true">${legend}<li class="note">Dashed lines cross between continents; Alaska and Kamchatka connect around the edge.</li></ul></section>`;
+}
+
+// ================= Actions =================
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.tagName === 'SELECT' || b.tagName === 'INPUT') return;
+  act(b.dataset.act, b.dataset, b);
+});
+document.addEventListener('change', e => {
+  const el = e.target, a = el.dataset.act; if (!a) return;
+  if (a === 'mode') { ui.mode = el.value; ui.setupPlayers = defaultPlayers(el.value === 'online' ? 'ai' : el.value); ui.onlineMsg = ''; render('mode-' + el.value); }
+  if (a === 'pkind') { ui.setupPlayers[+el.dataset.i].kind = el.value; }
+  if (a === 'step') { ui.step = el.value === 'all' ? 'all' : +el.value; render('step'); say(`Placing ${el.value === 'all' ? 'all remaining' : el.value} at a time.`); }
+  if (a === 'aicount') ui.aiCount = +el.value;
+});
+document.addEventListener('input', e => {
+  const el = e.target, a = el.dataset.act;
+  if (a === 'pname') ui.setupPlayers[+el.dataset.i].name = el.value;
+  if (a === 'myname') ui.myName = el.value;
+  if (a === 'joincode') ui.joinCode = el.value.toUpperCase();
+});
+
+function act(a, d, el) {
+  const t = d.t;
+  switch (a) {
+    case 'addp': ui.setupPlayers.push({ name: `Computer ${ui.setupPlayers.filter(p => p.kind === 'ai').length + 1}`, kind: 'ai' }); render('add-p'); say(`Player ${ui.setupPlayers.length} added.`); return;
+    case 'rmp': ui.setupPlayers.pop(); render(ui.setupPlayers.length > 2 ? 'rm-p' : 'add-p'); say(`Removed. ${ui.setupPlayers.length} players.`); return;
+    case 'start': {
+      const ps = ui.setupPlayers.map((p, i) => ({ name: (p.name || '').trim() || `Player ${i + 1}`, kind: p.kind }));
+      if (!ps.some(p => p.kind === 'human')) ps[0].kind = 'human';
+      G = newGame(ps); G.online = false; ui.screen = 'game'; lastAnnounced = 0; ui.handoffFor = null; ui.lastResult = '';
+      store(SAVE_KEY, G); afterStart(); return;
+    }
+    case 'resume': G = load(SAVE_KEY); ui.screen = 'game'; lastAnnounced = G.logId; ui.handoffFor = G.turn - 1; resetSel(); afterStart(); return;
+    case 'takeover': ui.handoff = false; render('phase-h'); announceNew(); return;
+    case 'trade': { const r = trade(G, bestSet(G, G.cur)); lastAnnounced = G.logId; say(`Traded for ${r.value} armies.${r.extra} ${G.reserve} to place.`, true); commit('phase-h'); return; }
+    case 'place': {
+      const n = Math.min(ui.step === 'all' ? G.reserve : ui.step, G.reserve);
+      place(G, t, n); lastAnnounced = G.logId;
+      if (G.phase === 'attack') { resetSel(); ui.lastResult = ''; say(`Placed ${n} on ${tname(t)}. All armies placed. Now attacking: choose where to attack from.`, true); commit('phase-h'); }
+      else { say(`Placed ${n} on ${tname(t)}, now ${G.armies[t]}. ${G.reserve} left.`, true); commit('pl-' + t); }
+      return;
+    }
+    case 'undo': { const u = undoPlace(G); if (u) say(`Took back ${u[1]} from ${tname(u[0])}. ${G.reserve} left.`, true); commit(G.placed.length ? 'undo' : 'phase-h'); return; }
+    case 'from': ui.from = t; ui.to = null; ui.lastResult = ''; render('phase-h'); return;
+    case 'to': ui.to = t; ui.lastResult = ''; render('phase-h'); return;
+    case 'backfrom': ui.from = null; render('phase-h'); return;
+    case 'backto': ui.to = null; ui.lastResult = ''; render('phase-h'); return;
+    case 'roll': case 'blitz': return doAttack(a === 'blitz');
+    case 'endattack': endAttack(G); resetSel(); ui.lastResult = ''; say('Attacks finished. Fortify, or end your turn.'); commit('phase-h'); return;
+    case 'occ': return doOccupy(+d.n);
+    case 'occsel': return doOccupy(+$('occ-n').value);
+    case 'ffrom': ui.ffrom = t; render('phase-h'); return;
+    case 'fto': ui.fto = t; render('phase-h'); return;
+    case 'backff': ui.ffrom = null; render('phase-h'); return;
+    case 'backft': ui.fto = null; render('phase-h'); return;
+    case 'fort': return doFortify(+d.n);
+    case 'fortsel': return doFortify(+$('fort-n').value);
+    case 'endturn': finishTurn('Turn ended.'); return;
+    case 'maptoggle': ui.showMap = !ui.showMap; store('fronts-map', ui.showMap || null); render('map-toggle'); say(ui.showMap ? 'Board diagram shown.' : 'Board diagram hidden.'); return;
+    case 'newgame': ui.confirmNew = true; render('new-yes'); return;
+    case 'newno': ui.confirmNew = false; render('new-game'); return;
+    case 'newyes': leaveGame(); return;
+    case 'create': return createOnline();
+    case 'join': return joinOnline();
+    case 'rejoin': return rejoinOnline();
+    case 'copy': copyCode(); return;
+    case 'leave': leaveGame(); return;
+  }
+}
+
+function afterStart() {
+  resetSel();
+  if (G.players[G.cur].kind === 'ai') { render('phase-h'); say(`Game started. ${G.players[G.cur].name} goes first.`); maybeRunAI(); }
+  else beginTurnView();
+}
+
+function diceText(r) {
+  return `You rolled ${r.A.join(', ')}. Defender rolled ${r.D.join(', ')}. ` +
+    (r.al === 0 ? `Defender lost ${r.dl}.` : r.dl === 0 ? `You lost ${r.al}.` : `You lost ${r.al}, defender lost ${r.dl}.`);
+}
+function doAttack(blitz) {
+  const f = ui.from, to = ui.to, def = G.owner[to];
+  const startA = G.armies[f], startD = G.armies[to];
+  let r, rounds = 0;
+  do { r = attackRoll(G, f, to); rounds++; } while (blitz && !r.captured && G.armies[f] >= 2);
+  let text = blitz ? `${plural(rounds, 'round')} of dice. ${tname(f)} lost ${startA - G.armies[f]}, ${tname(to)} lost ${startD - (r.captured ? 0 : G.armies[to])}. ` : diceText(r) + ' ';
+  if (r.captured) {
+    text += `You captured ${tname(to)}!`;
+    if (r.eliminated !== null) text += ` ${G.players[r.eliminated].name} is eliminated and you take their cards.`;
+    if (G.phase === 'over') { lastAnnounced = G.logId; say(text + ' You have conquered the world!', true); commit('phase-h'); return; }
+    ui.lastResult = text; lastAnnounced = G.logId;
+    if (G.occupy.max === G.occupy.min) { // no choice to make
+      const n = G.occupy.max; occupy(G, n); text += ` ${n} ${n === 1 ? 'army' : 'armies'} moved in.`;
+      resetSel(); ui.lastResult = text;
+      say(text + (G.phase === 'reinforce' ? ` You traded cards: place ${G.reserve} armies.` : ' Choose where to attack from next.'), true);
+      commit('phase-h'); return;
+    }
+    say(text + ` Move between ${G.occupy.min} and ${G.occupy.max} armies in.`, true); commit('phase-h'); return;
+  }
+  text = text.trim() + ` ${tname(f)} has ${G.armies[f]}, ${tname(to)} has ${G.armies[to]}.`;
+  if (G.armies[f] < 2) {
+    addLog(G, G.cur, `Attack on ${tname(to)} ({p${def}}) from ${tname(f)} by {p${G.cur}} was held off.`); lastAnnounced = G.logId;
+    text += ` ${tname(f)} can't attack any more.`; ui.from = ui.to = null; ui.lastResult = text; say(text, true); commit('phase-h'); return;
+  }
+  ui.lastResult = text; say(text, true); commit(blitz ? 'blitz' : 'roll');
+}
+function doOccupy(n) {
+  const o = G.occupy; occupy(G, n); lastAnnounced = G.logId;
+  resetSel(); ui.lastResult = '';
+  say(`Moved ${n} into ${tname(o.to)}. ${tname(o.from)} keeps ${G.armies[o.from]}. ` +
+    (G.phase === 'reinforce' ? `You traded cards: place ${G.reserve} armies.` : 'Choose where to attack from next.'), true);
+  commit('phase-h');
+}
+function doFortify(n) {
+  const f = ui.ffrom, t = ui.fto;
+  fortify(G, f, t, n);
+  G.phase === 'reinforce' && afterTurnEnded(`Moved ${n} from ${tname(f)} to ${tname(t)}.`);
+}
+function finishTurn(msg) { endTurn(G); afterTurnEnded(msg); }
+function afterTurnEnded(msg) {
+  resetSel(); ui.lastResult = '';
+  if (G.online) pushOnline(); else store(SAVE_KEY, G);
+  say(msg + ' ' + (G.players[G.cur].kind === 'ai' ? `${G.players[G.cur].name} is moving.` : ''), true);
+  if (G.players[G.cur].kind === 'ai') { render('phase-h'); maybeRunAI(); }
+  else beginTurnView();
+}
+
+function leaveGame() {
+  clearTimeout(aiTimer);
+  if (net.unsub) { net.unsub(); net.unsub = null; }
+  if (G && !G.online) store(SAVE_KEY, null);
+  if (G && G.online) store(ONLINE_KEY, null);
+  G = null; net.code = null; net.seat = null; ui = { ...ui, screen: 'setup', confirmNew: false, lastResult: '', handoff: false };
+  render('new-h');
+}
+
+// ================= Online =================
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function makeCode() { let s = ''; for (let i = 0; i < 4; i++) s += CODE_CHARS[rnd(CODE_CHARS.length)]; return s; }
+const myName = () => (ui.myName || '').trim();
+
+async function createOnline() {
+  if (!myName()) { ui.onlineMsg = 'Type your name first.'; render('my-name'); say(ui.onlineMsg, true); return; }
+  const ps = [{ name: myName(), kind: 'human', uid: net.uid }, { name: 'Friend', kind: 'human' }];
+  for (let i = 0; i < (ui.aiCount || 0); i++) ps.push({ name: `Computer ${i + 1}`, kind: 'ai' });
+  // make sure host sits in seat 0, the friend in seat 1
+  G = newGame(ps); G.online = true; G.started = false; G.host = net.uid;
+  net.code = makeCode(); net.seat = 0;
+  net.ref = net.db.doc('games/' + net.code);
+  try { await net.ref.set({ g: G, at: Date.now() }); }
+  catch (e) { ui.onlineMsg = 'Could not create the game online. Try again in a moment.'; G = null; render('create'); say(ui.onlineMsg, true); return; }
+  store(ONLINE_KEY, { code: net.code });
+  ui.screen = 'lobby'; subscribe(); render('phase-h');
+  say(`Game created. Your code is ${net.code.split('').join(' ')}.`, true);
+}
+
+async function joinOnline() {
+  const code = (ui.joinCode || '').trim().toUpperCase();
+  if (!myName()) { ui.onlineMsg = 'Type your name first.'; render('my-name'); say(ui.onlineMsg, true); return; }
+  if (code.length !== 4) { ui.onlineMsg = 'Game codes are 4 characters.'; render('join-code'); say(ui.onlineMsg, true); return; }
+  const ref = net.db.doc('games/' + code);
+  try {
+    const first = await ref.get();
+    if (!first.exists || !first.data().g) { ui.onlineMsg = `No game found with code ${code.split('').join(' ')}. Check the code with your friend.`; render('join-code'); say(ui.onlineMsg, true); return; }
+    const lease = await ref.acquire({ holder: net.uid, ttlMs: 5000 });
+    if (!lease.acquired) { ui.onlineMsg = 'Someone else is joining right now. Try again in a few seconds.'; render('join'); say(ui.onlineMsg, true); return; }
+    const snap = await ref.get();
+    if (!snap.exists || !snap.data().g) { ui.onlineMsg = `No game found with code ${code.split('').join(' ')}. Check the code with your friend.`; render('join-code'); say(ui.onlineMsg, true); return; }
+    const g = JSON.parse(JSON.stringify(snap.data().g));
+    let seat = g.players.findIndex(p => p.uid === net.uid);
+    if (seat < 0) {
+      seat = g.players.findIndex(p => p.kind === 'human' && !p.uid);
+      if (seat < 0) { ui.onlineMsg = 'That game is already full.'; render('join'); say(ui.onlineMsg, true); return; }
+      g.players[seat].uid = net.uid; g.players[seat].name = myName();
+      addLog(g, seat, `{p${seat}} joined the game. The game begins.`);
+      g.started = g.players.every(p => p.kind === 'ai' || p.uid); g.seq++;
+      await ref.set({ g, at: Date.now() });
+    }
+    net.ref = ref; net.code = code; net.seat = seat; G = g; lastAnnounced = G.logId;
+    store(ONLINE_KEY, { code });
+    ui.screen = G.started ? 'game' : 'lobby'; subscribe();
+    render('phase-h');
+    say(`Joined. You are ${G.players[seat].colorName}. ${isMyTurn() ? 'It is your turn.' : `${G.players[G.cur].name} goes first.`}`, true);
+    maybeRunAI();
+  } catch (e) {
+    ui.onlineMsg = e && e.code === 'invalid_argument' ? "You don't have permission to play in this game. Ask the game's owner to share it with you as an Editor." : 'Could not join right now. Try again in a moment.';
+    render('join'); say(ui.onlineMsg, true);
+  }
+}
+
+async function rejoinOnline() {
+  const last = load(ONLINE_KEY); if (!last) return;
+  const ref = net.db.doc('games/' + last.code);
+  try {
+    const snap = await ref.get();
+    if (!snap.exists || !snap.data().g) { store(ONLINE_KEY, null); ui.onlineMsg = 'That game no longer exists.'; render('create'); say(ui.onlineMsg, true); return; }
+    G = snap.data().g; net.ref = ref; net.code = last.code; net.seat = G.players.findIndex(p => p.uid === net.uid);
+    if (net.seat < 0) { store(ONLINE_KEY, null); ui.onlineMsg = "You aren't seated in that game."; G = null; render('create'); return; }
+    lastAnnounced = G.logId; ui.screen = G.started ? 'game' : 'lobby'; subscribe(); render('phase-h');
+    say(isMyTurn() ? 'Back in the game. It is your turn.' : `Back in the game. Waiting for ${G.players[G.cur].name}.`, true);
+    maybeRunAI();
+  } catch (e) { ui.onlineMsg = 'Could not reach the game right now.'; render('rejoin'); say(ui.onlineMsg, true); }
+}
+
+function subscribe() {
+  if (net.unsub) net.unsub();
+  net.unsub = net.ref.onSnapshot(snap => {
+    if (!snap.exists || !snap.data().g) return;
+    const g = snap.data().g;
+    if (!G || g.seq <= G.seq) return;
+    const wasStarted = G.started, wasMine = isMyTurn();
+    G = JSON.parse(JSON.stringify(g));
+    net.seat = G.players.findIndex(p => p.uid === net.uid);
+    if (!wasStarted && G.started) { ui.screen = 'game'; render('phase-h'); announceNew(); maybeRunAI(); return; }
+    if (!wasMine && isMyTurn()) { resetSel(); render('phase-h'); }
+    else render();
+    announceNew(); maybeRunAI();
+  }, err => { say('Lost the connection to the online game. Choose Start a new game, then Return to game to reconnect.', true); });
+}
+
+async function copyCode() {
+  try { await navigator.clipboard.writeText(net.code); say('Code copied.', true); }
+  catch (e) { say(`Couldn't copy. The code is ${net.code.split('').join(' ')}.`, true); }
+}
+
+// ================= Boot =================
+async function initOnline() {
+  try {
+    const [db, user] = await Promise.all([window.claude?.use?.('db'), window.claude?.use?.('user')]);
+    net.db = db || null; net.user = user || null;
+    net.uid = user ? await user.id() : null;
+  } catch (e) { net.db = null; }
+  net.checked = true;
+  if (ui.screen === 'setup' && ui.mode === 'online') render();
+}
+
+function start(data) {
+  if (data && data.G) {
+    G = data.G; ui = { ...ui, ...data.ui }; net.code = data.code; net.seat = data.seat; lastAnnounced = G.logId;
+  }
+  render();
+  initOnline().then(() => {
+    if (G && G.online && net.db && net.code) { net.ref = net.db.doc('games/' + net.code); subscribe(); maybeRunAI(); }
+  });
+  if (G && !G.online) maybeRunAI();
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</body>
+</html>
